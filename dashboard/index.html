@@ -8,6 +8,7 @@
 <meta name="description" content="Hurricane Milton's 3D temperature and rain structure retrieved from GOES-16 and ATMS with physics-guided diffusion data assimilation.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>html{color-scheme:light dark} img{max-width:100%} [hidden]{display:none!important}</style>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjQgMCA5MiA5MiI+CiAgICAKICAgIDxwYXRoIGQ9Ik0xMCAyNCBMIDcyIDg0IEwgODQgNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMWUyZjRhIiBzdHJva2Utd2lkdGg9IjEwIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICAgIDxnIHN0cm9rZT0iIzFlMmY0YSIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWNhcD0icm91bmQiPgogICAgICA8bGluZSB4MT0iMjUuOSIgeTE9IjMxIiB4Mj0iNzMuNCIgeTI9IjMxIi8+CiAgICAgIDxsaW5lIHgxPSIzNC4yIiB5MT0iMzkiIHgyPSI3Mi4yIiB5Mj0iMzkiLz4KICAgICAgPGxpbmUgeDE9IjUwLjgiIHkxPSI1NSIgeDI9IjY5LjgiIHkyPSI1NSIvPgogICAgICA8bGluZSB4MT0iNTkuMCIgeTE9IjYzIiB4Mj0iNjguNiIgeTI9IjYzIi8+CiAgICA8L2c+CiAgICA8bGluZSB4MT0iNDQuMCIgeTE9IjQ3IiB4Mj0iNjkuNSIgeTI9IjQ3IiBzdHJva2U9IiNlODc2M2EiIHN0cm9rZS13aWR0aD0iNiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgICA8cGF0aCBkPSJNNDUuMjUgNDcgUSA1Ni43NSAzNy41IDY4LjI1IDQ3IFEgNTYuNzUgNTYuNSA0NS4yNSA0NyBaIiBmaWxsPSIjZTg3NjNhIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMi4yIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgICA8Y2lyY2xlIGN4PSI1Ni43NSIgY3k9IjQ3IiByPSI0LjMiIGZpbGw9IiMxZTJmNGEiLz4KICAgIDxjaXJjbGUgY3g9IjU4LjEiIGN5PSI0NS43IiByPSIxLjIiIGZpbGw9IiNmZmYiLz4KICA8L3N2Zz4=">
 </head>
 <body>
 
@@ -124,8 +125,24 @@ footer{border-top:1px solid var(--rule);margin-top:40px;padding-top:18px;font-si
 <div class="wrap">
 <header class="mast">
   <div class="eyebrow">Hurricane Milton · 6 to 10 October 2024 · GOES-16 ABI + NOAA-20 ATMS</div>
-  <h1 style="margin-top:10px">Vaughan</h1>
-  <div class="eyebrow" style="margin-top:2px">Milton Inside Out: a satellite-only hurricane structure engine</div>
+  <div style="display:flex;align-items:center;gap:22px;margin-top:12px">
+    <svg viewBox="0 0 120 100" width="96" height="80" aria-label="Vaughan mark" style="flex:none">
+    <path d="M6 96 Q 15 90 24 96 T 42 96 T 60 96 T 78 96 T 96 96 T 114 96" fill="none" stroke="#1e2f4a" stroke-width="4" stroke-linecap="round"/>
+    <path d="M10 24 L 72 84 L 84 4" fill="none" stroke="#1e2f4a" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/>
+    <g stroke="#1e2f4a" stroke-width="3" stroke-linecap="round">
+      <line x1="25.9" y1="31" x2="73.4" y2="31"/>
+      <line x1="34.2" y1="39" x2="72.2" y2="39"/>
+      <line x1="50.8" y1="55" x2="69.8" y2="55"/>
+      <line x1="59.0" y1="63" x2="68.6" y2="63"/>
+    </g>
+    <line x1="44.0" y1="47" x2="69.5" y2="47" stroke="#e8763a" stroke-width="6" stroke-linecap="round"/>
+    <path d="M45.25 47 Q 56.75 37.5 68.25 47 Q 56.75 56.5 45.25 47 Z" fill="#e8763a" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>
+    <circle cx="56.75" cy="47" r="4.3" fill="#1e2f4a"/>
+    <circle cx="58.1" cy="45.7" r="1.2" fill="#fff"/>
+  </svg>
+    <div><h1 style="margin:0">Vaughan</h1>
+    <div class="eyebrow" style="margin-top:4px">Milton Inside Out: a satellite-only hurricane structure engine</div></div>
+  </div>
   <p class="lede">The three-dimensional temperature and rainfall structure of Hurricane Milton, retrieved from two satellites and no forecast model: a cross-attention U-Net proxy, a diffusion prior trained on six seasons of storms, and physics-guided score-based data assimilation with a calibrated microwave observation operator.</p>
   <div class="by">Emmanuel Chidi Ibekwe · M.Sc. Atmospheric Science, Texas A&amp;M · platform Vaughan, PyTorch package <span class="mono">milton_da</span> · verified against ERA5 and IMERG</div>
 </header>
