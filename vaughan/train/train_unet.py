@@ -25,7 +25,7 @@ from ..models.unet_xattn import CrossAttentionUNet
 from ..physics.rtm import AnalyticRTM
 from .common import MeterLogger, get_device, save_checkpoint
 
-log = logging.getLogger("milton_da")
+log = logging.getLogger("vaughan")
 
 
 def unet_loss(model: CrossAttentionUNet, batch: Dict[str, torch.Tensor], norm: Normalizer, rtm: Optional[AnalyticRTM], cfg: PipelineConfig) -> Dict[str, torch.Tensor]:

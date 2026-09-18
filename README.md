@@ -1,6 +1,6 @@
 # Vaughan: physics-guided score-based data assimilation for hurricane structure
 
-Vaughan is the platform name; `milton_da` is the Python package and repository name (kept so that existing links and imports keep working). The name is borrowed from The Displacements (Bruce Holsinger, 2022), a novel about a hurricane and the people it uproots.
+Vaughan is the platform and the Python package (`vaughan`, in the `vaughan/` folder of this repository). The repository itself keeps its original GitHub name, `milton_da`, so that existing links, including the dashboard address, keep working. The name is borrowed from The Displacements (Bruce Holsinger, 2022), a novel about a hurricane and the people it uproots.
 
 ## Hurricane Milton (Oct 2024) and Hurricane Melissa (Oct 2025)
 
@@ -23,7 +23,21 @@ ATMS      [B,9,32,32]  ─┘        (IR queries attend       │              �
                                                                    T [N,10,256,256], P [N,1,256,256]
 ```
 
-## Package layout
+## Repository layout
+
+```
+milton_da/                 the repository (GitHub name kept)
+  vaughan/                 the Python package: import vaughan; python -m vaughan.<module>
+  colab/                   Colab cells (training, experiments, Melissa, WeatherNext, cloud ice)
+  dashboard/               the published page (index.html) and the logo
+  docs/                    the technical report
+  results/                 scored outputs (Melissa, WeatherNext)
+  data/                    downloaded scenes and raw files (ignored by git)
+```
+
+Run everything from the repository root, for example `python -m vaughan.scripts.prepare_milton --root data/milton --dry-run` and `python -m pytest -q vaughan/tests`.
+
+## Package layout (inside `vaughan/`)
 
 | module | contents |
 |---|---|
@@ -36,13 +50,16 @@ ATMS      [B,9,32,32]  ─┘        (IR queries attend       │              �
 | `models/unet_xattn.py` | `CrossAttentionUNet`: IR encoder/decoder, `MicrowaveContextEncoder`, cross-attention at the two deepest levels of both paths |
 | `models/score_net.py` | `ScoreUNet` (eps-parameterised prior score), `GaussianClimatologyScore` (closed-form static-B baseline, also used to unit test the sampler) |
 | `models/sde.py` | `VPSDE`: marginals, perturbation, Tweedie, DSM loss |
-| `physics/rtm.py` | `AnalyticRTM` (weighting-function O2 sounding + scattering + IR cloud-top proxy), `NeuralRTMResidual`, `HybridRTM` |
+| `physics/rtm.py` | `AnalyticRTM` (weighting-function O2 sounding, rain- or ice-driven scattering depression, IR cloud-top proxy), `NeuralRTMResidual`, `HybridRTM` |
+| `physics/scatter.py` | `ScatteringRTM`: Mie soft-sphere ice optics and a delta-Eddington two-stream adding solver for the microwave channels |
+| `physics/audit.py` | least-squares fit of the per-channel ice-scattering depression from the operator audit |
 | `physics/constraints.py` | static-stability (dry adiabatic) penalty, hypsometric thickness, warm-core diagnostic |
 | `assimilation/guidance.py` | `Observations`, `JointLikelihood` (sum-form log p(y given x)), diagnostics |
 | `assimilation/sampler.py` | `GuidedScoreSampler`: predictor-corrector on the posterior score, DPS gradient through Tweedie, ensemble output |
 | `train/` | `train_unet.py` (MSE + RTM consistency), `train_score.py` (DSM with EMA; optional RTM residual fit), `common.py` |
 | `inference/run_milton.py` | `RetrievalEngine` and the CLI that writes CF NetCDF analyses with ensemble mean, spread, simulated vs observed TB, thickness and warm-core anomaly |
-| `tests/test_smoke.py` | end-to-end CPU tests including an exact-prior check that guidance reduces the TB misfit |
+| `scripts/` | `prepare_archive`, `prepare_milton`, `train`, `eval_unet`, `add_cloud_ice` command-line entry points |
+| `tests/` | end-to-end CPU tests (`test_smoke.py`, `test_cloud_ice.py`, `test_download_selection.py`), 21 in all |
 
 ## Tensor conventions
 
@@ -64,9 +81,9 @@ Pacific tropical cyclone 2017 to 2023 at 3-hourly cadence (ERA5 hours with an AB
 7.5 min and an ATMS overpass within 90 min), keeping Milton fully held out.
 
 ```python
-from milton_da.config import PipelineConfig
-from milton_da.data.best_track import BestTrack
-from milton_da.data.dataset import RawScenePaths, build_scene_cache, Normalizer, HurricaneSceneDataset
+from vaughan.config import PipelineConfig
+from vaughan.data.best_track import BestTrack
+from vaughan.data.dataset import RawScenePaths, build_scene_cache, Normalizer, HurricaneSceneDataset
 
 cfg = PipelineConfig()
 bt = BestTrack.from_ibtracs_csv("ibtracs.NA.list.v04r01.csv", sid="2024280N19269")
@@ -89,7 +106,7 @@ score, ema = train_score(cfg, train_ds)                       # stage 2: uncondi
 ```
 
 ```bash
-python -m milton_da.inference.run_milton --scenes artifacts/scenes/MILTON_*.nc \
+python -m vaughan.inference.run_milton --scenes artifacts/scenes/MILTON_*.nc \
     --stats artifacts/norm_stats.json --unet artifacts/checkpoints/unet.pt \
     --score artifacts/checkpoints/score.pt --out artifacts/analysis --ensemble 8 --steps 500
 ```
@@ -118,7 +135,7 @@ leak into precipitation through `expm1`.
 
 ## Verification included
 
-`pytest -q milton_da/tests` (about 15 s on CPU) checks dataset shapes and unit ranges, RTM
+`pytest -q vaughan/tests` (about 15 s on CPU) checks dataset shapes and unit ranges, RTM
 differentiability and monotonic physics (more rain gives colder IR window and colder 183 GHz),
 masked cross-attention with a sample lacking MW coverage, a full train-then-assimilate loop, and an
 exact-prior DA test: with the closed-form `GaussianClimatologyScore` prior, enabling guidance cut

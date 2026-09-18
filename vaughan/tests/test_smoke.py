@@ -1,21 +1,21 @@
-"""End-to-end CPU smoke test on synthetic scenes (run: pytest -q milton_da/tests)."""
+"""End-to-end CPU smoke test on synthetic scenes (run: pytest -q vaughan/tests)."""
 import numpy as np
 import pytest
 import torch
 
-from milton_da.assimilation.guidance import JointLikelihood, Observations
-from milton_da.assimilation.sampler import GuidedScoreSampler
-from milton_da.config import PipelineConfig
-from milton_da.data.dataset import HurricaneSceneDataset, Normalizer, collate
-from milton_da.data.synthetic import make_synthetic_scenes
-from milton_da.inference.run_milton import RetrievalEngine
-from milton_da.models.score_net import ScoreUNet
-from milton_da.models.sde import VPSDE
-from milton_da.models.unet_xattn import CrossAttentionUNet
-from milton_da.physics.constraints import static_stability_penalty
-from milton_da.physics.rtm import AnalyticRTM, HybridRTM, NeuralRTMResidual
-from milton_da.train.train_score import train_score
-from milton_da.train.train_unet import train_unet
+from vaughan.assimilation.guidance import JointLikelihood, Observations
+from vaughan.assimilation.sampler import GuidedScoreSampler
+from vaughan.config import PipelineConfig
+from vaughan.data.dataset import HurricaneSceneDataset, Normalizer, collate
+from vaughan.data.synthetic import make_synthetic_scenes
+from vaughan.inference.run_milton import RetrievalEngine
+from vaughan.models.score_net import ScoreUNet
+from vaughan.models.sde import VPSDE
+from vaughan.models.unet_xattn import CrossAttentionUNet
+from vaughan.physics.constraints import static_stability_penalty
+from vaughan.physics.rtm import AnalyticRTM, HybridRTM, NeuralRTMResidual
+from vaughan.train.train_score import train_score
+from vaughan.train.train_unet import train_unet
 
 
 @pytest.fixture(scope="module")
@@ -96,7 +96,7 @@ def test_graph_microwave_encoder(setup):
     (a sample with no microwave coverage yields an all-zero context and a finite proxy), build a
     graph whose neighbours are all valid nodes, and pass gradient to its parameters."""
     import copy
-    from milton_da.models.gnn import GraphMicrowaveEncoder
+    from vaughan.models.gnn import GraphMicrowaveEncoder
     cfg, scenes, norm, ds = setup
     vcfg = copy.deepcopy(cfg.unet)
     vcfg.mw_encoder, vcfg.graph_k, vcfg.graph_rounds = "graph", 8, 2
@@ -153,7 +153,7 @@ def test_guidance_reduces_observation_misfit(setup):
     the likelihood guidance must reduce the simulated-vs-observed brightness temperature misfit."""
     cfg, scenes, norm, ds = setup
     d = cfg.data
-    from milton_da.models.score_net import GaussianClimatologyScore
+    from vaughan.models.score_net import GaussianClimatologyScore
 
     cfg.guidance.n_steps = 60
     rtm = AnalyticRTM(d.levels_hpa, d.ir_channels, d.mw_channels, d.grid.mw_downscale)

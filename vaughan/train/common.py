@@ -10,7 +10,7 @@ from typing import Dict, Optional
 import torch
 import torch.nn as nn
 
-log = logging.getLogger("milton_da")
+log = logging.getLogger("vaughan")
 
 
 class EMA:

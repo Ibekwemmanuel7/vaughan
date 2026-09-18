@@ -1,7 +1,7 @@
 """
 Train the U-Net proxy and the diffusion prior on the scene archive, then sample the prior.
 
-    python -m milton_da.scripts.train --archive data\\archive --out artifacts --preset small --downscale 2 \\
+    python -m vaughan.scripts.train --archive data\\archive --out artifacts --preset small --downscale 2 \\
         --val-seasons 2023 --unet-steps 3000 --score-steps 20000 [--skip-unet] [--skip-score]
 
 Split: scenes whose analysis year is in --val-seasons are validation; everything else is training.
@@ -32,7 +32,7 @@ from ..train.common import get_device
 from ..train.train_score import train_score
 from ..train.train_unet import train_unet
 
-log = logging.getLogger("milton_da")
+log = logging.getLogger("vaughan")
 
 
 def split_scenes(archive: str, val_seasons):

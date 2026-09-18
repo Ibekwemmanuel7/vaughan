@@ -36,10 +36,10 @@ ds = xr.open_dataset(S[8]); print(ds.attrs.get('time'), 'ATMS coverage:', round(
 import json, sys
 import numpy as np, torch
 sys.path.insert(0, '/content')
-from milton_da.config import PipelineConfig
-from milton_da.data.dataset import HurricaneSceneDataset, Normalizer, collate
-from milton_da.physics.rtm import AnalyticRTM
-from milton_da.scripts.train import apply_preset
+from vaughan.config import PipelineConfig
+from vaughan.data.dataset import HurricaneSceneDataset, Normalizer, collate
+from vaughan.physics.rtm import AnalyticRTM
+from vaughan.scripts.train import apply_preset
 cfg = PipelineConfig(); apply_preset(cfg, 'small'); d = cfg.data
 norm = Normalizer.load(f'{A}/norm_stats.json')
 rtm = AnalyticRTM(d.levels_hpa, d.ir_channels, d.mw_channels, d.grid.mw_downscale)
@@ -84,7 +84,7 @@ print('\\nMilton audit for comparison (ATMS 5 to 9 bias K):', {k: round(v['bias_
 # each holding the ensemble mean, spread, the U-Net proxy and the RMSE against ERA5.
 """
 %cd /content
-!python -m milton_da.inference.run_milton --scenes /content/data/melissa/scenes/MELISSA_*.nc \
+!python -m vaughan.inference.run_milton --scenes /content/data/melissa/scenes/MELISSA_*.nc \
     --stats $A/norm_stats.json --unet $A/checkpoints/unet.pt --score $A/checkpoints/score.pt \
     --out $A/melissa_analysis --preset small --downscale 2 --ensemble 8 --steps 500 \
     --rtm-audit $A/rtm_audit.json --audit-table archive_2023
@@ -93,7 +93,7 @@ print('\\nMilton audit for comparison (ATMS 5 to 9 bias K):', {k: round(v['bias_
 # ---------- CELL M4 (optional, another 65 minutes): physics-only microwave, the third bar of the comparison ----------
 """
 %cd /content
-!python -m milton_da.inference.run_milton --scenes /content/data/melissa/scenes/MELISSA_*.nc \
+!python -m vaughan.inference.run_milton --scenes /content/data/melissa/scenes/MELISSA_*.nc \
     --stats $A/norm_stats.json --unet $A/checkpoints/unet.pt --score $A/checkpoints/score.pt \
     --out $A/melissa_physics_only --preset small --downscale 2 --ensemble 8 --steps 500 \
     --rtm-audit $A/rtm_audit.json --audit-table archive_2023 --proxy-no-mw

@@ -23,7 +23,7 @@ from ..models.score_net import ScoreUNet
 from ..models.sde import VPSDE
 from .common import EMA, MeterLogger, get_device, load_checkpoint, save_checkpoint
 
-log = logging.getLogger("milton_da")
+log = logging.getLogger("vaughan")
 
 
 def train_score(cfg: PipelineConfig, train_ds: Dataset, max_steps: Optional[int] = None, device=None, model: Optional[ScoreUNet] = None, resume: bool = False, ckpt_every: int = 500, ckpt_name: str = "score.pt") -> tuple[ScoreUNet, EMA]:

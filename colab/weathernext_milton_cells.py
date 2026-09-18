@@ -142,5 +142,5 @@ box = tmp.sel(lat=slice(lat_c - 5, lat_c + 5), lon=slice(lon_c - 5, lon_c + 5)) 
 anom = (box.max(('lat', 'lon')) - box.mean(('lat', 'lon')))
 print('300 hPa warm anomaly at first step, ensemble mean: %.2f K (members %.2f to %.2f)' % (
     float(anom.isel(time=0).mean('sample')), float(anom.isel(time=0).min('sample')), float(anom.isel(time=0).max('sample'))))
-print('Compare with the warm-core panel on the milton_da dashboard at 07 Oct 00 UTC (an IR-only scene) and the ERA5 peak of 4.4 K.')
+print('Compare with the warm-core panel on the vaughan dashboard at 07 Oct 00 UTC (an IR-only scene) and the ERA5 peak of 4.4 K.')
 """

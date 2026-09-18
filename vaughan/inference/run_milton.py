@@ -4,7 +4,7 @@ posterior sampling -> CF NetCDF analysis with ensemble mean, spread, and physics
 
 Example
 -------
-python -m milton_da.inference.run_milton \
+python -m vaughan.inference.run_milton \
     --scenes  artifacts/scenes/MILTON_2024-10-08T1200.nc artifacts/scenes/MILTON_2024-10-09T0000.nc \
     --stats   artifacts/norm_stats.json \
     --unet    artifacts/checkpoints/unet.pt --score artifacts/checkpoints/score.pt \
@@ -36,7 +36,7 @@ from ..physics.constraints import hydrostatic_thickness, warm_core_anomaly
 from ..physics.rtm import AnalyticRTM
 from ..train.common import get_device, load_checkpoint
 
-log = logging.getLogger("milton_da")
+log = logging.getLogger("vaughan")
 
 
 def _block_mean(a: np.ndarray, target_shape) -> np.ndarray:

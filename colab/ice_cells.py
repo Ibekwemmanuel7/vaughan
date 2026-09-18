@@ -14,9 +14,12 @@ I4  Melissa with the ice checkpoints, the two-stream operator and all-sky errors
 # ---------- CELL I0: ERA5 cloud ice into the scene files ----------
 """
 import os, getpass, subprocess, sys
-if not os.path.exists(os.path.expanduser('~/.cdsapirc')):
-    key = getpass.getpass('CDS API key (from https://cds.climate.copernicus.eu/profile): ')
-    open(os.path.expanduser('~/.cdsapirc'), 'w').write(f'url: https://cds.climate.copernicus.eu/api\\nkey: {key}\\n')
+rc = os.path.expanduser('~/.cdsapirc')
+if not os.path.exists(rc) or 'key:' not in open(rc).read():
+    key = getpass.getpass('CDS API key (from https://cds.climate.copernicus.eu/profile): ').strip()
+    with open(rc, 'w') as f:
+        f.write('url: https://cds.climate.copernicus.eu/api' + chr(10))
+        f.write('key: ' + key + chr(10))
 subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', 'cdsapi'], check=True)
 
 RAW = f'{A}/era5_ice'                      # cached CDS downloads, one file per storm, resumable
@@ -31,7 +34,7 @@ sets = {
 for name, paths in sets.items():
     if not paths: print(name, ': no scenes found'); continue
     print(f'=== {name}: {len(paths)} scenes')
-    subprocess.run([sys.executable, '-m', 'milton_da.scripts.add_cloud_ice', '--scenes', *paths, '--raw', RAW], cwd='/content', check=True)
+    subprocess.run([sys.executable, '-m', 'vaughan.scripts.add_cloud_ice', '--scenes', *paths, '--raw', RAW], cwd='/content', check=True)
 
 # keep the patched scenes: zip them back to Drive next to the originals (the originals are untouched on Drive)
 import shutil
@@ -44,12 +47,12 @@ for folder, out in [('/content/data/archive/scenes', f'{A}/archive_scenes_ice'),
 """
 import glob, json, os
 import numpy as np, torch, xarray as xr
-from milton_da.config import PipelineConfig
-from milton_da.data.dataset import HurricaneSceneDataset, Normalizer, collate
-from milton_da.physics.rtm import AnalyticRTM
-from milton_da.physics.scatter import ScatteringRTM
-from milton_da.physics.audit import fit_scatter_depression
-from milton_da.scripts.train import apply_preset
+from vaughan.config import PipelineConfig
+from vaughan.data.dataset import HurricaneSceneDataset, Normalizer, collate
+from vaughan.physics.rtm import AnalyticRTM
+from vaughan.physics.scatter import ScatteringRTM
+from vaughan.physics.audit import fit_scatter_depression
+from vaughan.scripts.train import apply_preset
 
 cfg = PipelineConfig(); apply_preset(cfg, 'small'); d = cfg.data
 norm = Normalizer.load(f'{A}/norm_stats.json')
@@ -112,7 +115,7 @@ print('"resid std" is what is left after the fitted IWP depression; "2-stream st
 # The audit's clear-sky table gives each channel its bias and clear-sky sigma; the symmetric cloud predictor
 # then inflates the error pixel by pixel where either the observation or the state says there is cloud.
 """
-!cd /content && python -m milton_da.inference.run_milton \
+!cd /content && python -m vaughan.inference.run_milton \
     --scenes /content/data/melissa/scenes/MELISSA_*.nc --stats $A/norm_stats.json \
     --unet $A/checkpoints/unet.pt --score $A/checkpoints/score.pt \
     --out $A/melissa_allsky --preset small --downscale 2 --ensemble 8 --steps 500 \
@@ -124,13 +127,13 @@ print('"resid std" is what is left after the fitted IWP depression; "2-stream st
 # New artifacts folder: the normaliser must be refitted with the iwp statistics. Same steps, seed and lambda as
 # the baseline so the comparison is fair. Checkpoints record ice='iwp'; run_milton picks it up automatically.
 """
-!cd /content && python -m milton_da.scripts.train --archive /content/data/archive/scenes --out $A/ice \
+!cd /content && python -m vaughan.scripts.train --archive /content/data/archive/scenes --out $A/ice \
     --preset small --downscale 2 --ice iwp --unet-steps 6000 --score-steps 20000 --lambda-rtm 0.01 --seed 0 --num-workers 4
 """
 
 # ---------- CELL I4: Melissa with the ice checkpoints, the two-stream operator and all-sky errors ----------
 """
-!cd /content && python -m milton_da.inference.run_milton \
+!cd /content && python -m vaughan.inference.run_milton \
     --scenes /content/data/melissa/scenes/MELISSA_*.nc --stats $A/ice/norm_stats.json \
     --unet $A/ice/checkpoints/unet.pt --score $A/ice/checkpoints/score.pt \
     --out $A/melissa_ice --preset small --downscale 2 --ensemble 8 --steps 500 \

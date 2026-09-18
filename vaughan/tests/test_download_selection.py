@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 
-from milton_da.data.best_track import BestTrack
-from milton_da.data.download import (Granule, era5_request, goes_prefixes, goes_sector_for, parse_goes_times,
+from vaughan.data.best_track import BestTrack
+from vaughan.data.download import (Granule, era5_request, goes_prefixes, goes_sector_for, parse_goes_times,
                                      select_atms_overpass, select_goes_key, select_imerg, storm_area)
 
 UTC = timezone.utc

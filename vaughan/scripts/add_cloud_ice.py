@@ -1,7 +1,7 @@
 """
 Patch existing scene files with ERA5 cloud ice (ciwc profile and ice water path) without rebuilding them.
 
-    python -m milton_da.scripts.add_cloud_ice --scenes "data/archive/scenes/*.nc" "data/milton/scenes/*.nc" \
+    python -m vaughan.scripts.add_cloud_ice --scenes "data/archive/scenes/*.nc" "data/milton/scenes/*.nc" \
         --raw data/raw/era5_ice [--overwrite] [--dry-run]
 
 Scenes are grouped by storm (storm_name attribute and season); one CDS request per storm fetches
@@ -29,7 +29,7 @@ from ..data.coregistration import TargetGrid
 from ..data.dataset import cloud_ice_from_era5
 from ..data.download import ERA5_ICE_EXTRA_LEVELS_HPA, _retry, storm_area
 
-log = logging.getLogger("milton_da")
+log = logging.getLogger("vaughan")
 
 
 def ice_request(days: List[str], hours: List[int], levels_hpa: List[int], area: List[float]) -> Dict:

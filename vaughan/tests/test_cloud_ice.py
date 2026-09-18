@@ -5,16 +5,16 @@ import numpy as np
 import pytest
 import torch
 
-from milton_da.assimilation.guidance import JointLikelihood, Observations
-from milton_da.config import PipelineConfig
-from milton_da.data.dataset import HurricaneSceneDataset, Normalizer, collate, integrate_ice
-from milton_da.data.synthetic import make_synthetic_scenes
-from milton_da.inference.run_milton import RetrievalEngine
-from milton_da.physics.audit import fit_scatter_depression
-from milton_da.physics.rtm import AnalyticRTM
-from milton_da.physics.scatter import IceOptics, ScatteringRTM, _mie_q, two_stream_layer
-from milton_da.train.train_score import train_score
-from milton_da.train.train_unet import train_unet
+from vaughan.assimilation.guidance import JointLikelihood, Observations
+from vaughan.config import PipelineConfig
+from vaughan.data.dataset import HurricaneSceneDataset, Normalizer, collate, integrate_ice
+from vaughan.data.synthetic import make_synthetic_scenes
+from vaughan.inference.run_milton import RetrievalEngine
+from vaughan.physics.audit import fit_scatter_depression
+from vaughan.physics.rtm import AnalyticRTM
+from vaughan.physics.scatter import IceOptics, ScatteringRTM, _mie_q, two_stream_layer
+from vaughan.train.train_score import train_score
+from vaughan.train.train_unet import train_unet
 
 
 @pytest.fixture(scope="module")

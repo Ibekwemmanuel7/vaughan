@@ -1,7 +1,7 @@
 """
 Build the Hurricane Milton scene cache from the public archives.
 
-    python -m milton_da.scripts.prepare_milton --root data/milton \
+    python -m vaughan.scripts.prepare_milton --root data/milton \
         --start 2024-10-06T00 --end 2024-10-10T00 --step-hours 6 \
         [--times 2024-10-07T06 2024-10-07T18 ...] [--dry-run]
 
@@ -28,7 +28,7 @@ from ..data.dataset import build_scene_cache
 from ..data.download import (assemble_manifest, download_atms, download_era5, download_goes, download_ibtracs,
                              download_imerg, save_manifest, storm_area)
 
-log = logging.getLogger("milton_da")
+log = logging.getLogger("vaughan")
 
 
 def analysis_times(start: str, end: str, step_hours: int, explicit) -> list:

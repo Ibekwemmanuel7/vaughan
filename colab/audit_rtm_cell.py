@@ -4,10 +4,10 @@
 import glob, json, os, sys
 import numpy as np, torch
 sys.path.insert(0, "/content")
-from milton_da.config import PipelineConfig
-from milton_da.data.dataset import HurricaneSceneDataset, Normalizer, collate
-from milton_da.physics.rtm import AnalyticRTM
-from milton_da.scripts.train import apply_preset
+from vaughan.config import PipelineConfig
+from vaughan.data.dataset import HurricaneSceneDataset, Normalizer, collate
+from vaughan.physics.rtm import AnalyticRTM
+from vaughan.scripts.train import apply_preset
 
 A = "/content/drive/MyDrive/milton_artifacts"
 cfg = PipelineConfig(); apply_preset(cfg, "small"); d = cfg.data

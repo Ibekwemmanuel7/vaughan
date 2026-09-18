@@ -1,7 +1,7 @@
 """
 Score one or more U-Net proxy checkpoints directly (no sampler): the honest baseline comparison.
 
-    python -m milton_da.scripts.eval_unet --stats artifacts/norm_stats.json --preset small --downscale 2 \
+    python -m vaughan.scripts.eval_unet --stats artifacts/norm_stats.json --preset small --downscale 2 \
         --archive data/archive --val-seasons 2023 --milton data/milton/scenes \
         --ckpt baseline=artifacts/checkpoints/unet.pt --ckpt attn=artifacts/checkpoints/unet_attn.pt
 
@@ -32,7 +32,7 @@ from ..models.unet_xattn import CrossAttentionUNet
 from ..train.common import get_device, load_checkpoint
 from .train import apply_preset, split_scenes
 
-log = logging.getLogger("milton_da")
+log = logging.getLogger("vaughan")
 CORE_HALF = 8   # central 16 x 16 pixels at the 128 grid (about 70 km at 4.4 km pixels); matches the dashboard
 
 

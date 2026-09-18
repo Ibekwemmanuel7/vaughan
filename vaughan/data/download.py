@@ -39,7 +39,7 @@ import pandas as pd
 
 from .dataset import RawScenePaths
 
-log = logging.getLogger("milton_da")
+log = logging.getLogger("vaughan")
 
 IBTRACS_URL = "https://www.ncei.noaa.gov/data/international-best-track-archive-for-climate-stewardship-ibtracs/v04r01/access/csv/ibtracs.NA.list.v04r01.csv"
 ATMS_SHORT_NAMES = ["SNPPATMSL1B", "SNDRJ1ATMSL1B", "SNDRJ2ATMSL1B"]

@@ -1,7 +1,7 @@
 """
 Build the multi-storm training archive (North Atlantic hurricanes, GOES-16 era) for the prior and proxy.
 
-    python -m milton_da.scripts.prepare_archive --root data/archive --seasons 2018 2019 2020 2021 2022 2023 \
+    python -m vaughan.scripts.prepare_archive --root data/archive --seasons 2018 2019 2020 2021 2022 2023 \
         --min-wind 64 --step-hours 3 [--max-storms 40] [--exclude MILTON:2024] [--list-only]
 
 Selection: IBTrACS storms in the seasons/basins that reached the wind threshold; analysis times every
@@ -28,7 +28,7 @@ from ..data.dataset import build_scene_cache
 from ..data.download import (assemble_manifest, download_atms, download_era5, download_goes, download_ibtracs,
                              download_imerg, load_manifest, save_manifest, storm_area)
 
-log = logging.getLogger("milton_da")
+log = logging.getLogger("vaughan")
 GOES16_EAST_START = np.datetime64("2017-12-18")   # GOES-16 declared operational as GOES-East
 
 
