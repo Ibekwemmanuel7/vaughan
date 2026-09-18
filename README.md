@@ -1,6 +1,6 @@
 # Vaughan: physics-guided score-based data assimilation for hurricane structure
 
-Vaughan is the platform and the Python package (`vaughan`, in the `vaughan/` folder of this repository). The repository itself keeps its original GitHub name, `milton_da`, so that existing links, including the dashboard address, keep working. The name is borrowed from The Displacements (Bruce Holsinger, 2022), a novel about a hurricane and the people it uproots.
+Vaughan is the platform and the Python package (`vaughan`, in the `vaughan/` folder of this repository). The repository is `github.com/Ibekwemmanuel7/vaughan`; the earlier address `milton_da` redirects there, and the old dashboard link forwards to the new one. The name is borrowed from The Displacements (Bruce Holsinger, 2022), a novel about a hurricane and the people it uproots.
 
 ## Hurricane Milton (Oct 2024) and Hurricane Melissa (Oct 2025)
 
@@ -26,7 +26,7 @@ ATMS      [B,9,32,32]  ─┘        (IR queries attend       │              �
 ## Repository layout
 
 ```
-milton_da/                 the repository (GitHub name kept)
+vaughan/                   the repository
   vaughan/                 the Python package: import vaughan; python -m vaughan.<module>
   colab/                   Colab cells (training, experiments, Melissa, WeatherNext, cloud ice)
   dashboard/               the published page (index.html) and the logo
