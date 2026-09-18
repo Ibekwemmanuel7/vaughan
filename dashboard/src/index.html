@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Vaughan: Milton Inside Out</title>
+<meta name="description" content="The three-dimensional temperature and rainfall structure of Hurricane Milton retrieved from GOES-16 and NOAA-20 ATMS alone, by physics-guided score-based data assimilation, verified against ERA5 and IMERG, and rerun unchanged on Hurricane Melissa.">
+<meta name="author" content="Emmanuel Chidi Ibekwe">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#1e2f4a">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Vaughan: Milton Inside Out">
+<meta property="og:description" content="A satellite-only hurricane structure engine: Milton's warm core and rain from two satellites and no forecast model.">
+<meta property="og:image" content="img/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="img/icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preload" href="data/manifest.json" as="fetch" crossorigin>
+<link rel="modulepreload" href="js/app.js">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="wrap">
+<header class="mast">
+  <div class="eyebrow">Hurricane Milton · 6 to 10 October 2024 · GOES-16 ABI + NOAA-20 ATMS</div>
+  <div class="brand">
+    <svg viewBox="0 0 120 100" role="img" aria-label="Vaughan mark">
+      <path d="M6 96 Q 15 90 24 96 T 42 96 T 60 96 T 78 96 T 96 96 T 114 96" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+      <path d="M10 24 L 72 84 L 84 4" fill="none" stroke="currentColor" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/>
+      <g stroke="currentColor" stroke-width="3" stroke-linecap="round">
+        <line x1="25.9" y1="31" x2="73.4" y2="31"/><line x1="34.2" y1="39" x2="72.2" y2="39"/><line x1="50.8" y1="55" x2="69.8" y2="55"/><line x1="59.0" y1="63" x2="68.6" y2="63"/>
+      </g>
+      <line x1="44.0" y1="47" x2="69.5" y2="47" stroke="var(--brand-warm)" stroke-width="6" stroke-linecap="round"/>
+      <path d="M45.25 47 Q 56.75 37.5 68.25 47 Q 56.75 56.5 45.25 47 Z" fill="var(--brand-warm)" stroke="var(--surface)" stroke-width="2.2" stroke-linejoin="round"/>
+      <circle cx="56.75" cy="47" r="4.3" fill="currentColor"/><circle cx="58.1" cy="45.7" r="1.2" fill="var(--surface)"/>
+    </svg>
+    <div><h1>Vaughan</h1><div class="eyebrow tag">Milton Inside Out: a satellite-only hurricane structure engine</div></div>
+  </div>
+  <p class="lede">The three-dimensional temperature and rainfall structure of Hurricane Milton, retrieved from two satellites and no forecast model: a cross-attention U-Net proxy, a diffusion prior trained on six seasons of storms, and physics-guided score-based data assimilation with a calibrated microwave observation operator.</p>
+  <div class="by">Emmanuel Chidi Ibekwe · M.Sc. Atmospheric Science, Texas A&amp;M · platform Vaughan, PyTorch package <span class="mono">vaughan</span> · verified against ERA5 and IMERG</div>
+</header>
+<main id="main">
+<!--SECTIONS-->
+</main>
+<!--FOOTER-->
+</div>
+<noscript><p class="status">This page draws its figures with JavaScript; the text and tables above are complete without it, the scene explorer is not.</p></noscript>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
