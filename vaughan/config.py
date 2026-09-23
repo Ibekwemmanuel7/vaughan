@@ -142,6 +142,8 @@ class GuidanceConfig:
     # scattering / cloud depression below the clear-sky simulation. sigma_eff^2 = sigma^2 + (slope c)^2.
     allsky: bool = False
     allsky_slope: float = 0.5         # K of extra error per K of symmetric cloud depression
+    use_ir_obs: bool = True           # False disables the infrared radiance term outright (not a large sigma)
+    use_mw_obs: bool = True           # False disables the microwave radiance term outright
     allsky_max_sigma_K: float = 40.0  # cap on sigma_eff
 
 

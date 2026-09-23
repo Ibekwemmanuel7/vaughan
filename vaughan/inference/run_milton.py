@@ -108,9 +108,13 @@ class RetrievalEngine:
         with torch.no_grad():
             t_mem, p_mem = self.norm.state_to_physical(out.samples[:, 0], d.precip_log_transform)         # [N, L, H, W], [N, 1, H, W]
             t_mean, p_mean = t_mem.mean(0), p_mem.mean(0)
-            t_std, p_std = t_mem.std(0), p_mem.std(0)
+            # one member: spread is undefined, not NaN; report zero and flag it in the attributes below
+            t_std, p_std = (t_mem.std(0), p_mem.std(0)) if t_mem.shape[0] > 1 else (torch.zeros_like(t_mean), torch.zeros_like(p_mean))
             t_det, p_det = self.norm.state_to_physical(obs.x_det[:1], d.precip_log_transform)
-            ice_mean = self.norm.state_ice(out.mean[:1], d.levels_hpa)
+            # ice: transform every member to physical units first, then average (the mean of the normalised
+            # state would be a geometric-type mean after the log transform, not the arithmetic ensemble mean)
+            ice_members = self.norm.state_ice(out.samples[:, 0], d.levels_hpa)
+            ice_mean = {k: v.mean(0, keepdim=True) for k, v in ice_members.items()} if ice_members is not None else None
             ir_sim, mw_sim = self.rtm(t_mean[None], p_mean[None], ice_mean)
             thick = hydrostatic_thickness(t_mean[None], d.levels_hpa)[0]
             wc = warm_core_anomaly(t_mean[None])[0]
@@ -131,7 +135,7 @@ class RetrievalEngine:
                 "lat": (("y", "x"), _block_mean(scene["lat"].values, t_mean.shape[-2:])), "lon": (("y", "x"), _block_mean(scene["lon"].values, t_mean.shape[-2:])),
             },
             coords={"level": list(d.levels_hpa), "layer": np.arange(d.n_levels - 1), "ir_channel": list(d.ir_channels), "mw_channel": list(d.mw_channels)},
-            attrs={**scene.attrs, "ensemble_size": int(out.samples.shape[0]), "n_steps": self.cfg.guidance.n_steps},
+            attrs={**scene.attrs, "ensemble_size": int(out.samples.shape[0]), "n_steps": self.cfg.guidance.n_steps, "spread_defined": int(out.samples.shape[0] > 1)},
         )
         if ice_mean is not None:
             ds["iwp"] = (("y", "x"), ice_mean["iwp"][0, 0].cpu().numpy(), {"units": "kg m-2", "long_name": "analysis ensemble mean ice water path"})
@@ -182,18 +186,13 @@ def main() -> None:
     if args.sigma_unet is not None:
         cfg.guidance.sigma_unet = args.sigma_unet
     if args.no_rtm:
-        cfg.guidance.sigma_ir_K, cfg.guidance.sigma_mw_K = 1e6, 1e6
+        cfg.guidance.use_ir_obs, cfg.guidance.use_mw_obs = False, False     # exact zero, immune to the all-sky cap
     cfg.guidance.allsky = bool(args.allsky)
     if args.allsky_slope is not None:
         cfg.guidance.allsky_slope = args.allsky_slope
     if args.ice is not None:
         cfg.data.ice = args.ice
     engine = RetrievalEngine.from_checkpoints(cfg, args.stats, args.unet, args.score, rtm_kind=args.rtm)
-    if args.scatter_fit:
-        import json
-        fit = json.load(open(args.rtm_audit))[args.scatter_fit] if (args.rtm_audit and not os.path.exists(args.scatter_fit)) else json.load(open(args.scatter_fit))
-        engine.likelihood.calibrate_scatter(fit, use_mw=args.mw_channels)
-        log.info("loaded ice-scattering fit for channels %s", [ch for ch in fit if fit[ch].get("fitted")])
     if args.rtm_audit and not args.no_rtm:
         import json
         table = json.load(open(args.rtm_audit))[args.audit_table]
@@ -203,6 +202,21 @@ def main() -> None:
                  args.rtm_audit, args.audit_table, args.ir_channels or "none", args.mw_channels,
                  [round(float(b), 1) for b, w in zip(lk.mw_bias, lk.mw_w) if w > 0],
                  [round(float(w) ** -0.5, 2) for w in lk.mw_w if w > 0])
+    if args.scatter_fit:
+        import json
+        fit = json.load(open(args.rtm_audit))[args.scatter_fit] if (args.rtm_audit and not os.path.exists(args.scatter_fit)) else json.load(open(args.scatter_fit))
+        engine.likelihood.calibrate_scatter(fit, use_mw=args.mw_channels)
+        log.info("loaded ice-scattering fit for channels %s", [ch for ch in fit if fit[ch].get("fitted")])
+    if not args.no_rtm:
+        lk = engine.likelihood
+        eff = {"mw_channels": list(cfg.data.mw_channels), "mw_bias_K": [float(b) for b in lk.mw_bias], "mw_sigma_K": [float(w) ** -0.5 if w > 0 else None for w in lk.mw_w],
+               "ir_channels": list(cfg.data.ir_channels), "ir_bias_K": [float(b) for b in lk.ir_bias], "ir_sigma_K": [float(w) ** -0.5 if w > 0 else None for w in lk.ir_w],
+               "audit": args.rtm_audit, "audit_table": args.audit_table, "scatter_fit": args.scatter_fit, "allsky": cfg.guidance.allsky}
+        os.makedirs(args.out, exist_ok=True)
+        import json
+        json.dump(eff, open(os.path.join(args.out, "effective_calibration.json"), "w"), indent=1)
+        log.info("effective calibration written to %s (audit first, scatter fit overrides fitted channels)", os.path.join(args.out, "effective_calibration.json"))
+
     ds_obj = HurricaneSceneDataset(args.scenes, cfg.data, engine.norm, downscale=args.downscale)
     os.makedirs(args.out, exist_ok=True)
     for i in range(len(ds_obj)):

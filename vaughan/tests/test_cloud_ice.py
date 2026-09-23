@@ -18,9 +18,10 @@ from vaughan.train.train_unet import train_unet
 
 
 @pytest.fixture(scope="module")
-def scenes():
+def scenes(tmp_path_factory):
     torch.manual_seed(0)
     cfg = PipelineConfig.small_debug()
+    cfg.train.ckpt_dir = str(tmp_path_factory.mktemp("ckpt"))   # never write into the real artifacts/checkpoints
     return cfg, make_synthetic_scenes(cfg.data, 6)
 
 

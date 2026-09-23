@@ -1,0 +1,526 @@
+{
+  "rain_coarsening": {
+    "physical_mean": 4.5,
+    "implemented_mean": 2.1622776985168457
+  },
+  "no_rtm_allsky": {
+    "configured_sigma_K": 1000000.0,
+    "actual_sigma_K": 40.0
+  },
+  "ice_integration": {
+    "normalizer_iwp": 0.8157729506492615,
+    "scattering_iwp": 0.8667589426040649,
+    "ir_iwp": 0.8922518491744995
+  },
+  "rain_dependence_with_ice": {
+    "ir_requires_grad": false,
+    "mw_requires_grad": false
+  },
+  "single_member_spread": {
+    "temperature_all_nan": true,
+    "precip_all_nan": true
+  },
+  "ice_ensemble_transform_example": {
+    "physical_mean": 4.5,
+    "exported_transform_of_mean": 2.1622776985168457
+  },
+  "checkpoints": {
+    "unet.pt": {
+      "step": 6000,
+      "extra": {},
+      "keys": [
+        "model",
+        "step",
+        "extra",
+        "optimizer"
+      ],
+      "parameters_in_model": 9555919
+    },
+    "score.pt": {
+      "step": 60000,
+      "extra": {},
+      "keys": [
+        "model",
+        "step",
+        "extra",
+        "optimizer",
+        "ema"
+      ],
+      "parameters_in_model": 26965883
+    },
+    "artifacts\\checkpoints\\unet.pt": {
+      "step": 40,
+      "extra": {
+        "unet_cfg": {
+          "base_channels": 16,
+          "channel_mults": [
+            1,
+            2,
+            4
+          ],
+          "n_res_blocks": 1,
+          "attn_heads": 4,
+          "cross_attn_levels": [
+            2
+          ],
+          "dropout": 0.0,
+          "pos_embed": false,
+          "self_attn_levels": [],
+          "mw_encoder": "grid",
+          "graph_k": 16,
+          "graph_rounds": 3
+        },
+        "ice": "none"
+      },
+      "keys": [
+        "model",
+        "step",
+        "extra",
+        "optimizer"
+      ],
+      "parameters_in_model": 642477
+    },
+    "artifacts\\checkpoints\\score.pt": {
+      "step": 60,
+      "extra": {
+        "ice": "none",
+        "state_channels": 11
+      },
+      "keys": [
+        "model",
+        "step",
+        "extra",
+        "optimizer",
+        "ema"
+      ],
+      "parameters_in_model": 585115
+    }
+  },
+  "real_scenes": [
+    {
+      "file": "MELISSA_2025-10-25T0000.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-25T00:00:00.000000",
+        "storm_lat": 16.1,
+        "storm_lon": -74.7,
+        "storm_name": "MELISSA",
+        "mw_dt_min": -9999.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20252980000212_e20252980009521_c20252980009575.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20252980000212_e20252980009532_c20252980009565.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20252980000212_e20252980009532_c20252980009584.nc",
+        "atms_files": ""
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 0.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-25T0600.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-25T06:00:00.000000",
+        "storm_lat": 16.3,
+        "storm_lon": -74.7,
+        "storm_name": "MELISSA",
+        "mw_dt_min": -6.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20252980600215_e20252980609523_c20252980609579.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20252980600215_e20252980609535_c20252980609565.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20252980600215_e20252980609535_c20252980609587.nc",
+        "atms_files": "SNDR.J1.ATMS.20251025T0548.m06.g059.L1B.std.v03_15.G.251027180056.nc;SNDR.J1.ATMS.20251025T0554.m06.g060.L1B.std.v03_15.G.251027180016.nc"
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 0.9853515625,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-25T1200.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-25T12:00:00.000000",
+        "storm_lat": 16.4,
+        "storm_lon": -74.9,
+        "storm_name": "MELISSA",
+        "mw_dt_min": -9999.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20252981200215_e20252981209523_c20252981209584.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20252981200215_e20252981209535_c20252981209572.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20252981200215_e20252981209535_c20252981209590.nc",
+        "atms_files": ""
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 0.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-25T1800.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-25T18:00:00.000000",
+        "storm_lat": 16.4,
+        "storm_lon": -75.3,
+        "storm_name": "MELISSA",
+        "mw_dt_min": 24.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20252981800213_e20252981809521_c20252981809580.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20252981800213_e20252981809533_c20252981809574.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20252981800213_e20252981809533_c20252981809581.nc",
+        "atms_files": "SNDR.SNPP.ATMS.20251025T1818.m06.g184.L1B.std.v03_15.G.251026003641.nc;SNDR.SNPP.ATMS.20251025T1824.m06.g185.L1B.std.v03_15.G.251026003651.nc"
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 1.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-26T0000.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-26T00:00:00.000000",
+        "storm_lat": 16.4,
+        "storm_lon": -75.7,
+        "storm_name": "MELISSA",
+        "mw_dt_min": -9999.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20252990000213_e20252990009522_c20252990009580.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20252990000213_e20252990009534_c20252990009578.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20252990000213_e20252990009533_c20252990009574.nc",
+        "atms_files": ""
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 0.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-26T0600.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-26T06:00:00.000000",
+        "storm_lat": 16.3,
+        "storm_lon": -76.0,
+        "storm_name": "MELISSA",
+        "mw_dt_min": 57.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20252990600216_e20252990609524_c20252990609580.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20252990600216_e20252990609536_c20252990609574.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20252990600216_e20252990609536_c20252990609577.nc",
+        "atms_files": "SNDR.SNPP.ATMS.20251026T0654.m06.g070.L1B.std.v03_15.G.251026122238.nc"
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 1.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-26T1200.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-26T12:00:00.000000",
+        "storm_lat": 16.3,
+        "storm_lon": -76.4,
+        "storm_name": "MELISSA",
+        "mw_dt_min": -9999.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20252991200216_e20252991209524_c20252991209581.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20252991200216_e20252991209536_c20252991209570.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20252991200216_e20252991209536_c20252991209586.nc",
+        "atms_files": ""
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 0.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-26T1800.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-26T18:00:00.000000",
+        "storm_lat": 16.3,
+        "storm_lon": -76.9,
+        "storm_name": "MELISSA",
+        "mw_dt_min": 6.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20252991800214_e20252991809522_c20252991809579.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20252991800214_e20252991809534_c20252991809568.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20252991800214_e20252991809534_c20252991809588.nc",
+        "atms_files": "SNDR.SNPP.ATMS.20251026T1800.m06.g181.L1B.std.v03_15.G.251027015016.nc;SNDR.SNPP.ATMS.20251026T1806.m06.g182.L1B.std.v03_15.G.251027015026.nc"
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 1.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-27T0000.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-27T00:00:00.000000",
+        "storm_lat": 16.3,
+        "storm_lon": -77.3,
+        "storm_name": "MELISSA",
+        "mw_dt_min": -9999.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20253000000214_e20253000009523_c20253000009580.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20253000000214_e20253000009534_c20253000009570.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20253000000214_e20253000009534_c20253000009594.nc",
+        "atms_files": ""
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 0.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-27T0600.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-27T06:00:00.000000",
+        "storm_lat": 16.3,
+        "storm_lon": -77.7,
+        "storm_name": "MELISSA",
+        "mw_dt_min": 36.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20253000600217_e20253000609525_c20253000609580.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20253000600217_e20253000609537_c20253000609567.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20253000600217_e20253000609537_c20253000609592.nc",
+        "atms_files": "SNDR.SNPP.ATMS.20251027T0630.m06.g066.L1B.std.v03_15.G.251027134708.nc;SNDR.SNPP.ATMS.20251027T0636.m06.g067.L1B.std.v03_15.G.251027134724.nc"
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 1.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-27T1200.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-27T12:00:00.000000",
+        "storm_lat": 16.3,
+        "storm_lon": -78.0,
+        "storm_name": "MELISSA",
+        "mw_dt_min": -9999.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20253001200204_e20253001209512_c20253001209571.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20253001200204_e20253001209524_c20253001209564.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20253001200204_e20253001209524_c20253001209587.nc",
+        "atms_files": ""
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 0.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-27T1800.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-27T18:00:00.000000",
+        "storm_lat": 16.4,
+        "storm_lon": -78.3,
+        "storm_name": "MELISSA",
+        "mw_dt_min": 9.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20253001800202_e20253001809510_c20253001809570.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20253001800202_e20253001809522_c20253001809560.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20253001800202_e20253001809522_c20253001809579.nc",
+        "atms_files": "SNDR.J1.ATMS.20251027T1806.m06.g182.L1B.std.v03_15.G.251028085950.nc"
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 1.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-28T0000.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-28T00:00:00.000000",
+        "storm_lat": 16.5,
+        "storm_lon": -78.6,
+        "storm_name": "MELISSA",
+        "mw_dt_min": -9999.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20253010000202_e20253010009511_c20253010009570.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20253010000202_e20253010009524_c20253010009557.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20253010000202_e20253010009523_c20253010009584.nc",
+        "atms_files": ""
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 0.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-28T0600.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-28T06:00:00.000000",
+        "storm_lat": 16.9,
+        "storm_lon": -78.4,
+        "storm_name": "MELISSA",
+        "mw_dt_min": 18.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20253010600205_e20253010609513_c20253010609570.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20253010600205_e20253010609525_c20253010609561.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20253010600205_e20253010609524_c20253010609587.nc",
+        "atms_files": "SNDR.SNPP.ATMS.20251028T0612.m06.g063.L1B.std.v03_15.G.251028133346.nc;SNDR.SNPP.ATMS.20251028T0618.m06.g064.L1B.std.v03_15.G.251028133356.nc"
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 1.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-28T1200.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-28T12:00:00.000000",
+        "storm_lat": 17.5,
+        "storm_lon": -78.1,
+        "storm_name": "MELISSA",
+        "mw_dt_min": -9999.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20253011200205_e20253011209513_c20253011209568.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20253011200205_e20253011209525_c20253011209557.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20253011200205_e20253011209525_c20253011209568.nc",
+        "atms_files": ""
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 0.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-28T1800.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-28T18:00:00.000000",
+        "storm_lat": 18.2,
+        "storm_lon": -78.0,
+        "storm_name": "MELISSA",
+        "mw_dt_min": -12.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20253011800203_e20253011809511_c20253011809575.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20253011800203_e20253011809523_c20253011809561.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20253011800203_e20253011809523_c20253011809588.nc",
+        "atms_files": "SNDR.J1.ATMS.20251028T1742.m06.g178.L1B.std.v03_15.G.251028221740.nc;SNDR.J1.ATMS.20251028T1748.m06.g179.L1B.std.v03_15.G.251029005831.nc"
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 1.0,
+      "ir_coverage": 1.0
+    },
+    {
+      "file": "MELISSA_2025-10-29T0000.nc",
+      "shape": {
+        "ir_channel": 3,
+        "y": 256,
+        "x": 256,
+        "mw_channel": 9,
+        "yc": 32,
+        "xc": 32,
+        "level": 10
+      },
+      "attrs": {
+        "time": "2025-10-29T00:00:00.000000",
+        "storm_lat": 18.8,
+        "storm_lon": -77.1,
+        "storm_name": "MELISSA",
+        "mw_dt_min": -9999.0,
+        "goes_files": "OR_ABI-L2-CMIPF-M6C08_G19_s20253020000203_e20253020009512_c20253020009568.nc;OR_ABI-L2-CMIPF-M6C10_G19_s20253020000203_e20253020009523_c20253020009561.nc;OR_ABI-L2-CMIPF-M6C13_G19_s20253020000203_e20253020009523_c20253020009586.nc",
+        "atms_files": ""
+      },
+      "temp_nan": 0,
+      "rain_nan": 0,
+      "mw_coverage": 0.0,
+      "ir_coverage": 1.0
+    }
+  ]
+}

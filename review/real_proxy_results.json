@@ -1,0 +1,144 @@
+{
+  "elapsed_seconds": 2.535422799992375,
+  "rows": [
+    {
+      "scene": "MELISSA_2025-10-25T0000.nc",
+      "core_rmse_300_K": 1.0601470470428467,
+      "saved_core_rmse_300_unet_K": 1.0601468086242676,
+      "climatology_core_rmse_300_K": 1.508836269378662,
+      "domain_rmse_300_K": 0.765788197517395,
+      "rain_rmse_log_coarsened_label": 3.5962021350860596
+    },
+    {
+      "scene": "MELISSA_2025-10-25T0600.nc",
+      "core_rmse_300_K": 0.873324453830719,
+      "saved_core_rmse_300_unet_K": 0.8733238577842712,
+      "climatology_core_rmse_300_K": 2.756195068359375,
+      "domain_rmse_300_K": 1.4840598106384277,
+      "rain_rmse_log_coarsened_label": 17.046995162963867
+    },
+    {
+      "scene": "MELISSA_2025-10-25T1200.nc",
+      "core_rmse_300_K": 1.420179843902588,
+      "saved_core_rmse_300_unet_K": 1.420178771018982,
+      "climatology_core_rmse_300_K": 3.772371530532837,
+      "domain_rmse_300_K": 0.7219270467758179,
+      "rain_rmse_log_coarsened_label": 3.9738974571228027
+    },
+    {
+      "scene": "MELISSA_2025-10-25T1800.nc",
+      "core_rmse_300_K": 0.47705262899398804,
+      "saved_core_rmse_300_unet_K": 0.47705262899398804,
+      "climatology_core_rmse_300_K": 3.699406147003174,
+      "domain_rmse_300_K": 0.45530831813812256,
+      "rain_rmse_log_coarsened_label": 8.39219856262207
+    },
+    {
+      "scene": "MELISSA_2025-10-26T0000.nc",
+      "core_rmse_300_K": 0.7868092656135559,
+      "saved_core_rmse_300_unet_K": 0.7868090867996216,
+      "climatology_core_rmse_300_K": 3.9892518520355225,
+      "domain_rmse_300_K": 0.6506739258766174,
+      "rain_rmse_log_coarsened_label": 4.686155319213867
+    },
+    {
+      "scene": "MELISSA_2025-10-26T0600.nc",
+      "core_rmse_300_K": 1.3138848543167114,
+      "saved_core_rmse_300_unet_K": 1.31388521194458,
+      "climatology_core_rmse_300_K": 3.1689770221710205,
+      "domain_rmse_300_K": 0.7158451080322266,
+      "rain_rmse_log_coarsened_label": 8.304741859436035
+    },
+    {
+      "scene": "MELISSA_2025-10-26T1200.nc",
+      "core_rmse_300_K": 0.8300511837005615,
+      "saved_core_rmse_300_unet_K": 0.8300502896308899,
+      "climatology_core_rmse_300_K": 3.393876314163208,
+      "domain_rmse_300_K": 0.7057103514671326,
+      "rain_rmse_log_coarsened_label": 4.722766399383545
+    },
+    {
+      "scene": "MELISSA_2025-10-26T1800.nc",
+      "core_rmse_300_K": 0.8442457914352417,
+      "saved_core_rmse_300_unet_K": 0.8442459106445312,
+      "climatology_core_rmse_300_K": 3.605696439743042,
+      "domain_rmse_300_K": 0.6559351086616516,
+      "rain_rmse_log_coarsened_label": 9.176191329956055
+    },
+    {
+      "scene": "MELISSA_2025-10-27T0000.nc",
+      "core_rmse_300_K": 1.0579214096069336,
+      "saved_core_rmse_300_unet_K": 1.0579215288162231,
+      "climatology_core_rmse_300_K": 3.6652746200561523,
+      "domain_rmse_300_K": 0.7210330963134766,
+      "rain_rmse_log_coarsened_label": 4.1591386795043945
+    },
+    {
+      "scene": "MELISSA_2025-10-27T0600.nc",
+      "core_rmse_300_K": 0.5639267563819885,
+      "saved_core_rmse_300_unet_K": 0.5639266967773438,
+      "climatology_core_rmse_300_K": 3.929501533508301,
+      "domain_rmse_300_K": 0.7082093954086304,
+      "rain_rmse_log_coarsened_label": 14.873251914978027
+    },
+    {
+      "scene": "MELISSA_2025-10-27T1200.nc",
+      "core_rmse_300_K": 0.774207592010498,
+      "saved_core_rmse_300_unet_K": 0.7742078900337219,
+      "climatology_core_rmse_300_K": 3.8003036975860596,
+      "domain_rmse_300_K": 0.5148530006408691,
+      "rain_rmse_log_coarsened_label": 3.3099982738494873
+    },
+    {
+      "scene": "MELISSA_2025-10-27T1800.nc",
+      "core_rmse_300_K": 0.837055504322052,
+      "saved_core_rmse_300_unet_K": 0.8370553255081177,
+      "climatology_core_rmse_300_K": 5.189749717712402,
+      "domain_rmse_300_K": 0.9848526120185852,
+      "rain_rmse_log_coarsened_label": 12.189179420471191
+    },
+    {
+      "scene": "MELISSA_2025-10-28T0000.nc",
+      "core_rmse_300_K": 2.319288730621338,
+      "saved_core_rmse_300_unet_K": 2.319288492202759,
+      "climatology_core_rmse_300_K": 5.47170352935791,
+      "domain_rmse_300_K": 1.4576448202133179,
+      "rain_rmse_log_coarsened_label": 3.1410071849823
+    },
+    {
+      "scene": "MELISSA_2025-10-28T0600.nc",
+      "core_rmse_300_K": 1.868229866027832,
+      "saved_core_rmse_300_unet_K": 1.8682295083999634,
+      "climatology_core_rmse_300_K": 6.162003993988037,
+      "domain_rmse_300_K": 1.4243664741516113,
+      "rain_rmse_log_coarsened_label": 11.554542541503906
+    },
+    {
+      "scene": "MELISSA_2025-10-28T1200.nc",
+      "core_rmse_300_K": 0.6706872582435608,
+      "saved_core_rmse_300_unet_K": 0.6706870794296265,
+      "climatology_core_rmse_300_K": 5.318097114562988,
+      "domain_rmse_300_K": 1.0187634229660034,
+      "rain_rmse_log_coarsened_label": 4.733699798583984
+    },
+    {
+      "scene": "MELISSA_2025-10-28T1800.nc",
+      "core_rmse_300_K": 0.5261601805686951,
+      "saved_core_rmse_300_unet_K": 0.5261604189872742,
+      "climatology_core_rmse_300_K": 5.450040340423584,
+      "domain_rmse_300_K": 1.1653883457183838,
+      "rain_rmse_log_coarsened_label": 13.662397384643555
+    },
+    {
+      "scene": "MELISSA_2025-10-29T0000.nc",
+      "core_rmse_300_K": 3.3208751678466797,
+      "saved_core_rmse_300_unet_K": 3.320875406265259,
+      "climatology_core_rmse_300_K": 6.23607063293457,
+      "domain_rmse_300_K": 1.7657859325408936,
+      "rain_rmse_log_coarsened_label": 5.256906986236572
+    }
+  ],
+  "mean_core_rmse": 1.1496498549685759,
+  "mean_climatology_core_rmse": 4.183373871971579,
+  "max_difference_from_saved_core_metric": 1.0728836059570312e-06
+}

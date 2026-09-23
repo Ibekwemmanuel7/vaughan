@@ -149,6 +149,11 @@ class JointLikelihood(nn.Module):
         j_unet = 0.5 * ((x0_hat - obs.x_det) ** 2).sum(dim=(1, 2, 3)) / (c.sigma_unet**2 + r2)
         j_ir = 0.5 * ((r_ir**2) * ir_w * obs.ir_mask).sum(dim=(1, 2, 3))
         j_mw = 0.5 * ((r_mw**2) * mw_w * obs.mw_mask).sum(dim=(1, 2, 3))
+        # Explicit switches: a disabled radiance term contributes exactly zero, whatever the all-sky cap does.
+        if not self.cfg.use_ir_obs:
+            j_ir = j_ir * 0.0
+        if not self.cfg.use_mw_obs:
+            j_mw = j_mw * 0.0
         # Penalties are means per pixel; scale by pixel count so lambda is grid-size independent.
         pen = n_pix / (1.0 + r2)
         j_stab = torch.stack([static_stability_penalty(temp[i : i + 1], self.data_cfg.levels_hpa) for i in range(B)]) * c.lambda_stability * pen
