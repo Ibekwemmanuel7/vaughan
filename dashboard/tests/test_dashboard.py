@@ -104,3 +104,17 @@ def test_reduced_motion_pauses_loop(pw, server):
     ctx = pw.new_context(viewport={'width': 1280, 'height': 900}, reduced_motion='reduce')
     page = ctx.new_page(); page.goto(server, wait_until='networkidle')
     assert page.locator('#playbtn').inner_text() == 'Play'
+
+
+def test_polo_section(pw, server):
+    page, errors = load(pw, server)
+    assert page.locator('#polo table tbody tr').count() == 31
+    assert page.locator('#polo tbody tr td:nth-child(2)', has_text='yes').count() == 9
+    page.locator('#polo').scroll_into_view_if_needed()      # the figures are lazy-loaded
+    page.locator('#polo .fine').last.scroll_into_view_if_needed()
+    page.wait_for_timeout(800)
+    for name in ('polo_summary', 'polo_structure'):
+        ok = page.evaluate(f"() => {{ const i = document.querySelector('img[src=\"img/{name}.webp\"]'); return i && i.complete && i.naturalWidth > 0 }}")
+        assert ok, name
+    assert page.locator('nav a[href="#polo"]').count() >= 1
+    assert errors == [], errors

@@ -6,7 +6,7 @@ Build the Vaughan dashboard.
   python build.py --in-place -> this folder (what GitHub Pages serves)
 
 Inputs: src/ (shell, stylesheet, section markup, modules), raw/dash.json (scores and fields),
-raw/imagery.json (base64 JPEG frames), raw/*.png (the two figures) and logo/.
+raw/imagery.json (base64 JPEG frames), raw/*.png (the figures) and logo/.
 
 Outputs (all static, no framework):
   index.html                 shell with sections, content-hashed asset links
@@ -26,7 +26,8 @@ OUT = os.path.join(HERE, 'out') if '--in-place' not in sys.argv else HERE
 RAW = os.path.join(HERE, 'raw')
 DASH = os.path.join(RAW, 'dash.json')
 IMAGERY = os.path.join(RAW, 'imagery.json')
-FIGS = {'melissa_summary': os.path.join(RAW, 'melissa_summary.png'), 'weathernext_milton': os.path.join(RAW, 'weathernext_milton.png')}
+FIGS = {'melissa_summary': os.path.join(RAW, 'melissa_summary.png'), 'weathernext_milton': os.path.join(RAW, 'weathernext_milton.png'),
+        'polo_summary': os.path.join(RAW, 'polo_summary.png'), 'polo_structure': os.path.join(RAW, 'polo_structure.png')}
 LOGO_PNG = os.path.join(HERE, 'logo', 'vaughan_mark.png')
 LOGO_ON_NAVY = os.path.join(HERE, 'logo', 'vaughan_mark_on_navy.png')
 

@@ -37,3 +37,6 @@ runs on requestAnimationFrame, pauses off-screen (IntersectionObserver) and unde
 prefers-reduced-motion. Colour maps are Moreland cool-warm and viridis. Everything interactive
 is a native control or an ARIA-labelled canvas; the time strip is an arrow-key roving group.
 Strict CSP (no inline script or style), dark scheme, print rules.
+
+
+Polo (September 2026) is a static section like Melissa's: figures from results/polo (polo_summary.png, polo_structure_2026-09-22T2000.png copied to raw/polo_structure.png) and the per-scene table generated from results/polo/polo_scores.csv.
