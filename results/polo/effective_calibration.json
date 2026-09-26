@@ -1,0 +1,54 @@
+{
+ "mw_channels": [
+  5,
+  6,
+  7,
+  8,
+  9,
+  16,
+  17,
+  18,
+  22
+ ],
+ "mw_bias_K": [
+  23.232240676879883,
+  21.59722900390625,
+  18.285316467285156,
+  14.393045425415039,
+  20.544692993164062,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "mw_sigma_K": [
+  3.424104249941957,
+  2.299150491854275,
+  1.0581030849498356,
+  1.0,
+  1.2983586747208964,
+  null,
+  null,
+  null,
+  null
+ ],
+ "ir_channels": [
+  "C08",
+  "C10",
+  "C13"
+ ],
+ "ir_bias_K": [
+  0.0,
+  0.0,
+  0.0
+ ],
+ "ir_sigma_K": [
+  null,
+  null,
+  null
+ ],
+ "audit": "/content/drive/MyDrive/milton_artifacts/rtm_audit.json",
+ "audit_table": "archive_2023",
+ "scatter_fit": null,
+ "allsky": false
+}

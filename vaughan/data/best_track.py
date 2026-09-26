@@ -7,6 +7,7 @@ domains. Milton (AL142024) is available in IBTrACS v04r01 (SID 2024279N21265) an
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -51,6 +52,42 @@ class BestTrack:
         g = df.groupby("SID").agg(name=("NAME", "first"), season=("SEASON", "first"), max_wind=("USA_WIND", "max"),
                                   start=("ISO_TIME", "min"), end=("ISO_TIME", "max"))
         return g[g["max_wind"] >= min_wind_kt].reset_index()
+
+    @classmethod
+    def from_atcf_bdeck(cls, path: str) -> "BestTrack":
+        """NHC/JTWC ATCF "b-deck" best track (https://ftp.nhc.noaa.gov/atcf/btk/bep172026.dat).
+
+        The b-deck is the only best track that exists while a storm is active: it is updated with every
+        advisory, whereas IBTrACS lags by days to weeks. Format (comma separated, one line per fix and
+        wind radius): BASIN, CY, YYYYMMDDHH, TECHNUM, TECH, TAU, LatN/S (tenths), LonE/W (tenths), VMAX (kt),
+        MSLP (hPa), TY, RAD, ... A fix with 34, 50 and 64 kt radii appears three times; one row per time
+        is kept (the first). Also fills wind_kt, mslp_hpa, status (DB, TD, TS, HU, ...) and name."""
+        times, lats, lons, winds, mslps, status, names = [], [], [], [], [], [], []
+        seen = set()
+        with open(path) as f:
+            for line in f:
+                p = [x.strip() for x in line.split(",")]
+                if len(p) < 11 or p[4] != "BEST":
+                    continue
+                t = np.datetime64(f"{p[2][:4]}-{p[2][4:6]}-{p[2][6:8]}T{p[2][8:10]}:00")
+                if t in seen:
+                    continue
+                seen.add(t)
+                lat = float(p[6][:-1]) / 10.0 * (1 if p[6].endswith("N") else -1)
+                lon = float(p[7][:-1]) / 10.0 * (1 if p[7].endswith("E") else -1)
+                times.append(t), lats.append(lat), lons.append(lon)
+                winds.append(float(p[8]) if p[8] else np.nan), mslps.append(float(p[9]) if p[9] else np.nan)
+                status.append(p[10]), names.append(p[27] if len(p) > 27 else "")
+        if not times:
+            raise ValueError(f"{path}: no BEST fixes found")
+        order = np.argsort(np.array(times, dtype="datetime64[ns]"))
+        bt = cls(np.array(times, dtype="datetime64[ns]")[order], np.array(lats)[order], np.array(lons)[order])
+        bt.wind_kt = np.array(winds)[order]
+        bt.mslp_hpa = np.array(mslps)[order]
+        bt.status = [status[i] for i in order]
+        bt.name = next((n for n in reversed([names[i] for i in order]) if n and n not in ("INVEST",)), "")
+        bt.sid = os.path.basename(path).split(".")[0].upper().lstrip("B")
+        return bt
 
     @classmethod
     def from_hurdat2(cls, path: str, storm_id: str = "AL142024") -> "BestTrack":

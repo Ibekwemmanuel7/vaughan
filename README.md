@@ -1,6 +1,6 @@
 # Vaughan: physics-guided score-based data assimilation for hurricane structure
 
-Vaughan is the platform and the Python package (`vaughan`, in the `vaughan/` folder of this repository). The repository is `github.com/Ibekwemmanuel7/vaughan`; the earlier address `milton_da` redirects there, and the old dashboard link forwards to the new one. The name is borrowed from The Displacements (Bruce Holsinger, 2022), a novel about a hurricane and the people it uproots.
+Vaughan is the platform and the Python package (`vaughan`, in the `vaughan/` folder of this repository). The repository itself keeps its original GitHub name, `milton_da`, so that existing links, including the dashboard address, keep working. The name is borrowed from The Displacements (Bruce Holsinger, 2022), a novel about a hurricane and the people it uproots.
 
 ## Hurricane Milton (Oct 2024) and Hurricane Melissa (Oct 2025)
 
@@ -26,7 +26,7 @@ ATMS      [B,9,32,32]  ─┘        (IR queries attend       │              �
 ## Repository layout
 
 ```
-vaughan/                   the repository
+milton_da/                 the repository (GitHub name kept)
   vaughan/                 the Python package: import vaughan; python -m vaughan.<module>
   colab/                   Colab cells (training, experiments, Melissa, WeatherNext, cloud ice)
   dashboard/               the published page (index.html) and the logo
@@ -92,6 +92,17 @@ scene = RawScenePaths(time=np.datetime64("2024-10-08T12:00"), storm_lat=lat, sto
                       goes_files={"C08": ..., "C10": ..., "C13": ...}, atms_file=..., era5_file=..., imerg_file=...)
 paths = build_scene_cache([scene, ...], cfg.data, "artifacts/scenes")
 ```
+
+### A live storm (no reanalysis yet)
+
+An active storm is not in IBTrACS and has no ERA5 for about five days. The scene builder can take the
+NHC ATCF b-deck as the track (`--track atcf --atcf-id EP172026`, refreshed on every call while the storm
+is active) and build scenes without labels (`--live`): temperature and, where IMERG is not there yet, rain
+are NaN and the scene carries `attrs["labels"]`. The retrieval never reads the labels, so the analysis is
+unchanged; the RMSE variables are simply absent. Rebuild with `--rebuild` (without `--live`) once ERA5T
+covers the period and the same scenes gain their labels. `colab/polo_cells.py` runs Hurricane Polo
+(EP172026, September 2026) this way and scores it in observation space, against IMERG and against the
+best-track intensity.
 
 ## Training and inference
 

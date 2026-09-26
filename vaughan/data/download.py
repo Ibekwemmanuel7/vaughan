@@ -42,6 +42,9 @@ from .dataset import RawScenePaths
 log = logging.getLogger("vaughan")
 
 IBTRACS_URL = "https://www.ncei.noaa.gov/data/international-best-track-archive-for-climate-stewardship-ibtracs/v04r01/access/csv/ibtracs.NA.list.v04r01.csv"
+IBTRACS_BASIN_URL = "https://www.ncei.noaa.gov/data/international-best-track-archive-for-climate-stewardship-ibtracs/v04r01/access/csv/ibtracs.{basin}.list.v04r01.csv"
+ATCF_BDECK_URL = "https://ftp.nhc.noaa.gov/atcf/btk/b{atcf_id}.dat"        # active and current-season storms
+ATCF_BDECK_ARCHIVE_URL = "https://ftp.nhc.noaa.gov/atcf/archive/{year}/b{atcf_id}.dat.gz"
 ATMS_SHORT_NAMES = ["SNPPATMSL1B", "SNDRJ1ATMSL1B", "SNDRJ2ATMSL1B"]
 GOES_BUCKET = {"goes16": "noaa-goes16", "goes18": "noaa-goes18", "goes19": "noaa-goes19"}
 
@@ -88,9 +91,15 @@ def parse_goes_times(key: str) -> Tuple[datetime, datetime]:
     return mk(0), mk(6)
 
 
-def goes_sector_for(lat: float, lon: float) -> str:
-    """CMIPC (CONUS, 5-min, small files) when the storm is inside the GOES-East CONUS sector, else CMIPF."""
-    return "ABI-L2-CMIPC" if (15.0 <= lat <= 50.0 and -125.0 <= lon <= -60.0) else "ABI-L2-CMIPF"
+def goes_sector_for(lat: float, lon: float, satellite: str = "goes16") -> str:
+    """CMIPC (CONUS, 5-min, small files) when the storm sits well inside the GOES-East CONUS sector, else
+    the full disk. The sector edge is not a rectangle in latitude and longitude and the storm-centred domain
+    extends about 280 km from the centre, so a wide margin is kept: Polo 2026 at 16 to 17 N, 102 to 105 W
+    came back 72 to 90 percent covered from the CONUS sector, hence the 20 N and 105 W limits below.
+    GOES-West (goes18) has a different CONUS sector (PACUS); its storms always use the full disk here."""
+    if satellite == "goes18":
+        return "ABI-L2-CMIPF"
+    return "ABI-L2-CMIPC" if (20.0 <= lat <= 48.0 and -105.0 <= lon <= -65.0) else "ABI-L2-CMIPF"
 
 
 def goes_prefixes(t: datetime, product: str, satellite: str = "goes16") -> List[str]:
@@ -131,7 +140,7 @@ def download_goes(times: Sequence, centers: Sequence[Tuple[float, float]], chann
     listing_cache: Dict[str, List[str]] = {}
     for t_raw, (lat, lon) in zip(times, centers):
         t = _to_dt(t_raw)
-        prod = product or goes_sector_for(lat, lon)
+        prod = product or goes_sector_for(lat, lon, satellite)
         keys: List[str] = []
         for prefix in goes_prefixes(t, prod, satellite):
             if prefix not in listing_cache:
@@ -434,9 +443,11 @@ def download_era5(times: Sequence, levels_hpa: Sequence[int], area: Sequence[flo
 # ==============================================================================================
 # IBTrACS
 # ==============================================================================================
-def download_ibtracs(out_dir: str, url: str = IBTRACS_URL) -> str:
+def download_ibtracs(out_dir: str, url: Optional[str] = None, basin: str = "NA") -> str:
+    """IBTrACS list for one basin (NA, EP, WP, ...). Note the lag: an active storm is provisional or absent."""
     import requests
 
+    url = url or IBTRACS_BASIN_URL.format(basin=basin)
     os.makedirs(out_dir, exist_ok=True)
     dst = os.path.join(out_dir, os.path.basename(url))
     if not os.path.exists(dst):
@@ -449,6 +460,43 @@ def download_ibtracs(out_dir: str, url: str = IBTRACS_URL) -> str:
     return dst
 
 
+def download_bdeck(out_dir: str, atcf_id: str, refresh: bool = True) -> str:
+    """NHC ATCF b-deck best track for one storm, e.g. atcf_id="EP172026" (Polo). The current-season file is
+    re-downloaded on every call by default because it grows with each advisory while the storm is active;
+    if the storm has been archived (after the season) the gzipped archive copy is fetched instead."""
+    import gzip
+    import requests
+
+    os.makedirs(out_dir, exist_ok=True)
+    sid = atcf_id.lower()
+    dst = os.path.join(out_dir, f"b{sid}.dat")
+    if os.path.exists(dst) and not refresh:
+        return dst
+    url = ATCF_BDECK_URL.format(atcf_id=sid)
+    log.info(f"ATCF b-deck get {url}")
+    try:
+        r = requests.get(url, timeout=120)
+        if r.status_code == 404:
+            url = ATCF_BDECK_ARCHIVE_URL.format(year=sid[-4:], atcf_id=sid)
+            log.info(f"ATCF b-deck not in btk/, trying the archive {url}")
+            r = requests.get(url, timeout=120)
+            r.raise_for_status()
+            data = gzip.decompress(r.content)
+        else:
+            r.raise_for_status()
+            data = r.content
+    except Exception as ex:  # noqa: BLE001
+        if os.path.exists(dst):
+            log.warning(f"ATCF b-deck download failed ({ex}); using the cached {dst}")
+            return dst
+        raise
+    tmp = dst + ".part"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.replace(tmp, dst)
+    return dst
+
+
 # ==============================================================================================
 # Manifest: ties everything together for build_scene_cache()
 # ==============================================================================================
@@ -458,14 +506,23 @@ def storm_area(lats: Sequence[float], lons: Sequence[float], pad_deg: float = 4.
 
 
 def assemble_manifest(times: Sequence, centers: Sequence[Tuple[float, float]], goes: List[Dict[str, str]], atms: List[Tuple[List[str], Optional[float]]],
-                      era5_by_day: Dict[str, str], imerg: List[Optional[str]], storm_name: str, require_all_ir: bool = True) -> List[RawScenePaths]:
+                      era5_by_day: Dict[str, str], imerg: List[Optional[str]], storm_name: str, require_all_ir: bool = True,
+                      require_labels: bool = True) -> List[RawScenePaths]:
+    """One RawScenePaths per analysis time that has what it needs. With require_labels (the default, for
+    training and verified case studies) a scene needs ERA5 and IMERG; with require_labels=False (a live storm,
+    before ERA5 exists) a scene needs only the infrared and carries whichever labels are available."""
     scenes = []
     for t_raw, (lat, lon), g, (a, dt), im in zip(times, centers, goes, atms, imerg):
         t = _to_dt(t_raw)
         era = era5_by_day.get(t.strftime("%Y-%m-%d"))
-        if era is None or im is None or (require_all_ir and len(g) == 0):
-            log.warning(f"skip {t:%Y-%m-%dT%H:%M}: missing labels or IR")
+        if require_all_ir and len(g) == 0:
+            log.warning(f"skip {t:%Y-%m-%dT%H:%M}: no infrared")
             continue
+        if require_labels and (era is None or im is None):
+            log.warning(f"skip {t:%Y-%m-%dT%H:%M}: missing labels (ERA5 {'ok' if era else 'missing'}, IMERG {'ok' if im else 'missing'})")
+            continue
+        if era is None or im is None:
+            log.info(f"{t:%Y-%m-%dT%H:%M}: unlabelled scene (ERA5 {'ok' if era else 'missing'}, IMERG {'ok' if im else 'missing'})")
         scenes.append(RawScenePaths(time=np.datetime64(t.replace(tzinfo=None)), storm_lat=lat, storm_lon=lon, goes_files=g, atms_files=a, era5_file=era, imerg_file=im, storm_name=storm_name, mw_dt_min=dt))
     return scenes
 

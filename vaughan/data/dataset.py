@@ -218,8 +218,8 @@ class RawScenePaths:
     storm_lon: float
     goes_files: Dict[str, str]              # {"C13": ".../OR_ABI-L2-CMIPF-M6C13_G16_....nc", ...}
     atms_files: List[str]                   # consecutive 6-min ATMS L1B granules covering the storm (may be empty)
-    era5_file: str                          # pressure-level temperature for the analysis hour
-    imerg_file: str                         # IMERG half-hourly precipitation
+    era5_file: Optional[str]                # pressure-level temperature for the analysis hour (None: no temperature label yet)
+    imerg_file: Optional[str]               # IMERG half-hourly precipitation (None: no rain label yet)
     storm_name: str = "MILTON"
     mw_dt_min: Optional[float] = None       # overpass time minus analysis time (minutes), for provenance
 
@@ -314,22 +314,33 @@ def build_scene(paths: RawScenePaths, cfg: DataConfig) -> xr.Dataset:
         mw_land, _ = regrid_swath_to_target(lat, lon, land, coarse)
 
     # --- Labels ----------------------------------------------------------------------------
-    with xr.open_dataset(paths.era5_file) as eds:
-        lvl_name = "pressure_level" if "pressure_level" in eds.dims else "level"
-        t = eds["t"].sel({lvl_name: list(cfg.levels_hpa)})
-        if "valid_time" in t.dims or "time" in t.dims:
-            tname = "valid_time" if "valid_time" in t.dims else "time"
-            t = t.sel({tname: paths.time}, method="nearest")
-        temp = regrid_latlon_to_target(t, target)                     # [L, H, W]
-        ciwc, iwp = None, None
-        if "ciwc" in eds:
-            ciwc, iwp = cloud_ice_from_era5(eds, paths.time, list(cfg.levels_hpa), target)
-    with xr.open_dataset(paths.imerg_file, group="Grid") as ids:
-        p = ids["precipitation"] if "precipitation" in ids else ids["precipitationCal"]
-        p = p.isel(time=0) if "time" in p.dims else p
-        p = p.transpose("lat", "lon")
-        precip = regrid_latlon_to_target(p, target, lat_name="lat", lon_name="lon")   # [H, W]
-        precip = np.clip(np.nan_to_num(precip, nan=0.0), 0, None)
+    # A live storm has no ERA5 for about five days (ERA5T) and may have no IMERG for a few hours. Such a scene
+    # carries NaN labels and the attribute labels="none"/"precip"/"temp"/"temp,precip"; the retrieval never
+    # reads the labels, only the scoring does, so the analysis is unaffected and the scene can be rebuilt
+    # with --rebuild once the reanalysis exists.
+    ciwc, iwp = None, None
+    if paths.era5_file is not None:
+        with xr.open_dataset(paths.era5_file) as eds:
+            lvl_name = "pressure_level" if "pressure_level" in eds.dims else "level"
+            t = eds["t"].sel({lvl_name: list(cfg.levels_hpa)})
+            if "valid_time" in t.dims or "time" in t.dims:
+                tname = "valid_time" if "valid_time" in t.dims else "time"
+                t = t.sel({tname: paths.time}, method="nearest")
+            temp = regrid_latlon_to_target(t, target)                     # [L, H, W]
+            if "ciwc" in eds:
+                ciwc, iwp = cloud_ice_from_era5(eds, paths.time, list(cfg.levels_hpa), target)
+    else:
+        temp = np.full((len(cfg.levels_hpa), H, W), np.nan, np.float32)
+    if paths.imerg_file is not None:
+        with xr.open_dataset(paths.imerg_file, group="Grid") as ids:
+            p = ids["precipitation"] if "precipitation" in ids else ids["precipitationCal"]
+            p = p.isel(time=0) if "time" in p.dims else p
+            p = p.transpose("lat", "lon")
+            precip = regrid_latlon_to_target(p, target, lat_name="lat", lon_name="lon")   # [H, W]
+            precip = np.clip(np.nan_to_num(precip, nan=0.0), 0, None)
+    else:
+        precip = np.full((H, W), np.nan, np.float32)
+    labels = ",".join(k for k, ok in (("temp", paths.era5_file is not None), ("precip", paths.imerg_file is not None)) if ok) or "none"
 
     ds = xr.Dataset(
         {
@@ -348,6 +359,7 @@ def build_scene(paths: RawScenePaths, cfg: DataConfig) -> xr.Dataset:
         },
         coords={"ir_channel": list(cfg.ir_channels), "mw_channel": list(cfg.mw_channels), "level": list(cfg.levels_hpa)},
         attrs={"time": str(paths.time), "storm_lat": paths.storm_lat, "storm_lon": paths.storm_lon, "storm_name": paths.storm_name,
+               "labels": labels,
                "mw_dt_min": float(paths.mw_dt_min) if paths.mw_dt_min is not None else -9999.0,
                "goes_files": ";".join(os.path.basename(v) for v in paths.goes_files.values()),
                "atms_files": ";".join(os.path.basename(v) for v in paths.atms_files)},
@@ -400,14 +412,21 @@ class HurricaneSceneDataset(Dataset):
         ir = self.norm.normalize("ir", ir_raw) * ir_mask                      # masked -> 0 after normalisation
         mw = self.norm.normalize("mw", mw_raw) * mw_mask
         ice = None
+        unlabelled = "temp" not in str(s.attrs.get("labels", "temp,precip"))     # live scene without ERA5: NaN labels are expected
         if self.cfg.ice == "iwp":
-            if "iwp" not in s:
+            if "iwp" in s:
+                ice = {"iwp": torch.from_numpy(s["iwp"].values).float()[None][None]}                   # [1, 1, H, W]
+            elif unlabelled:
+                ice = {"iwp": torch.full((1, 1, *temp.shape[-2:]), float("nan"))}
+            else:
                 raise KeyError(f"DataConfig.ice='iwp' but the scene has no 'iwp' variable; rebuild it with ERA5 ciwc or run scripts/add_cloud_ice.py")
-            ice = {"iwp": torch.from_numpy(s["iwp"].values).float()[None][None]}                   # [1, 1, H, W]
         elif self.cfg.ice == "profile":
-            if "ciwc" not in s:
+            if "ciwc" in s:
+                ice = {"ciwc": torch.from_numpy(s["ciwc"].values).float()[None]}                       # [1, L, H, W]
+            elif unlabelled:
+                ice = {"ciwc": torch.full((1, *temp.shape), float("nan"))}
+            else:
                 raise KeyError(f"DataConfig.ice='profile' but the scene has no 'ciwc' variable; rebuild it with ERA5 ciwc or run scripts/add_cloud_ice.py")
-            ice = {"ciwc": torch.from_numpy(s["ciwc"].values).float()[None]}                       # [1, L, H, W]
         state = self.norm.physical_to_state(temp[None], precip[None], self.cfg.precip_log_transform, ice=ice, ice_mode=self.cfg.ice)[0]   # [L+1(+ice), H, W]
 
         sample = {"ir": ir, "ir_mask": ir_mask, "mw": mw, "mw_mask": mw_mask, "mw_zen": mw_zen * mw_mask, "state": state, "ir_raw": ir_raw, "mw_raw": mw_raw}

@@ -225,7 +225,8 @@ def main() -> None:
         if args.no_mw:
             batch["mw_mask"].zero_(), batch["mw"].zero_(), batch["mw_zen"].zero_()
         out, obs = engine.analyse(batch, ensemble_size=args.ensemble, proxy_no_mw=args.proxy_no_mw)
-        result = engine.to_dataset(out, obs, scene, truth=batch["state"])
+        truth = batch["state"] if bool(torch.isfinite(batch["state"]).all()) else None     # live scenes carry NaN labels: no RMSE
+        result = engine.to_dataset(out, obs, scene, truth=truth)
         path = os.path.join(args.out, os.path.basename(args.scenes[i]).replace(".nc", "_analysis.nc"))
         result.to_netcdf(path)
         log.info(f"wrote {path}  warm core (K by level): {np.round(result['warm_core_anomaly'].values, 1)}")
