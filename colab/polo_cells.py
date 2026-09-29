@@ -225,21 +225,23 @@ print('wrote', f'{A}/polo_results/polo_structure.json', 'with', len(D), 'scenes'
 # processed in time order; the first one is unchanged. Writes to polo_analysis_persist, so the plain run stays.
 # About the same time per scene as P2. Add --persist-warm-t 0.5 to also start each chain from the previous
 # analysis (half the steps are then spent near the data manifold); leave it out for the first comparison.
+# --seed 7 pairs the sampling noise scene by scene and member by member with a plain run made with the same
+# seed (P2 with --seed 7 into polo_analysis_seed7), so the two runs differ only in the persistence term.
 """
 %cd /content
 !python -m vaughan.inference.run_milton --scenes /content/data/polo/scenes/POLO_*.nc \
     --stats $A/norm_stats.json --unet $A/checkpoints/unet.pt --score $A/checkpoints/score.pt \
     --out $A/polo_analysis_persist --preset small --downscale 2 --ensemble 8 --steps 500 \
-    --rtm-audit $A/rtm_audit.json --audit-table archive_2023 --persist 0.3
+    --rtm-audit $A/rtm_audit.json --audit-table archive_2023 --persist 0.3 --seed 7
 """
 
 # ---------- CELL P6: plain against persistence, warm core through time ----------
 # The question is whether the 300 hPa warm core becomes a smoother function of time without losing its
 # agreement with the best-track intensity (rank correlation) or its fit to the sounder. Jumps between
-# neighbouring scenes are summarised as the mean absolute six-hour change; a smaller number with the same
+# neighbouring scenes are summarised as the mean absolute change between consecutive scenes (gaps of 2, 4 and 6 h); a smaller number with the same
 # or better rank correlation is the result wanted. The fit column must not get worse: if it does, the
 # background is too tight (raise --persist or --persist-q). The fit uses the calibrated channels only.
-# Result, Polo, 31 scenes, --persist 0.3 (28 Sept 2026): rank correlation 0.79 -> 0.87, mean |6 h change|
+# Result, Polo, 31 scenes, --persist 0.3 (28 Sept 2026): rank correlation 0.79 -> 0.87, mean |change between consecutive scenes|
 # 0.81 -> 0.39 K, bias-corrected ATMS fit ch5-9 3.93/2.28/1.20/0.68/0.64 -> 3.91/2.33/1.24/0.72/0.60 K,
 # peak warm core 5.7 -> 4.9 K, spread 0.072 -> 0.053 K (the members become more alike; see the roadmap).
 """
@@ -269,7 +271,7 @@ P, Q = series('polo_analysis'), series('polo_analysis_persist')
 M = P.merge(Q, on='time', suffixes=('_plain', '_persist'))
 for tag in ('plain', 'persist'):
     wc = M[f'wc300_{tag}'].values
-    print(f'{tag:8s} rank corr vs Vmax {spearmanr(wc, M["vmax_plain"]).correlation:.2f}   mean |6 h change| {np.abs(np.diff(wc)).mean():.2f} K   '
+    print(f'{tag:8s} rank corr vs Vmax {spearmanr(wc, M["vmax_plain"]).correlation:.2f}   mean |change between consecutive scenes| {np.abs(np.diff(wc)).mean():.2f} K   '
           f'ATMS fit {M[f"fit_atms_K_{tag}"].mean():.2f} K   spread {M[f"spread300_{tag}"].mean():.3f} K')
 print(M[['time', 'vmax_plain', 'wc300_plain', 'wc300_persist', 'fit_atms_K_plain', 'fit_atms_K_persist', 'dt_prev_h_persist']].round(2).to_string(index=False))
 fig, ax = plt.subplots(figsize=(9, 3.6))
@@ -278,5 +280,6 @@ ax.plot(M['time'], M['wc300_persist'], 'o-', color='C3', label='analysis, previo
 ax.set_ylabel('300 hPa warm core (K)'); ax2 = ax.twinx(); ax2.plot(M['time'], M['vmax_plain'], 'k--', lw=1, label='best-track Vmax'); ax2.set_ylabel('kt')
 ax.legend(loc='upper left', fontsize=8); ax2.legend(loc='upper right', fontsize=8); ax.set_title('Hurricane Polo, time continuity')
 fig.autofmt_xdate(); fig.tight_layout(); fig.savefig(f'{A}/polo_results/polo_persist.png', dpi=150)
+M['gap_h'] = M['time'].diff().dt.total_seconds() / 3600
 M.to_csv(f'{A}/polo_results/polo_persist_compare.csv', index=False); print('saved polo_persist.png and polo_persist_compare.csv')
 """

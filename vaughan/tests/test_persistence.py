@@ -127,3 +127,52 @@ def test_engine_threads_x_prev_and_records_attrs():
     ds1 = engine.to_dataset(out1, obs1, scenes[1], truth=b1["state"])
     assert ds1.attrs["persist_dt_h"] == 6.0
     assert abs(ds1.attrs["persist_sigma"] - np.sqrt(0.09 + 0.15**2 * 6)) < 1e-6
+
+
+def _cli_fixture(tmp_path):
+    """Full-size synthetic scenes, random weights and a normaliser on disk, for the command line."""
+    import xarray as xr
+    from vaughan.config import PipelineConfig
+    cfg = PipelineConfig(); d = cfg.data
+    scenes = make_synthetic_scenes(d, 3)
+    for i, s in enumerate(scenes):
+        s.attrs["time"] = f"2026-09-22T{[20, 8, 14][i]:02d}:00"
+        s.to_netcdf(tmp_path / f"s{i}.nc")
+    Normalizer.fit(scenes).save(str(tmp_path / "norm.json"))
+    torch.save({"model": CrossAttentionUNet(d, cfg.unet).state_dict(), "extra": {}}, tmp_path / "unet.pt")
+    sn = ScoreUNet(d, cfg.score); torch.save({"model": sn.state_dict(), "ema": sn.state_dict(), "extra": {}}, tmp_path / "score.pt")
+    return [str(tmp_path / f"s{i}.nc") for i in range(3)]
+
+
+def _run_cli(tmp_path, scenes, out, *extra):
+    import subprocess, sys
+    cmd = [sys.executable, "-m", "vaughan.inference.run_milton", "--scenes", *scenes, "--stats", str(tmp_path / "norm.json"),
+           "--unet", str(tmp_path / "unet.pt"), "--score", str(tmp_path / "score.pt"), "--out", str(out),
+           "--ensemble", "2", "--steps", "3", "--downscale", "4", *extra]
+    return subprocess.run(cmd, capture_output=True, text=True)
+
+
+def test_cli_orders_by_time_pairs_seeds_and_guards_the_sequence(tmp_path):
+    import xarray as xr
+    scenes = _cli_fixture(tmp_path)
+    # two runs with the same seed are identical sample by sample; scenes are processed in time order (08, 14, 20)
+    for tag in ("a", "b"):
+        r = _run_cli(tmp_path, scenes, tmp_path / tag, "--persist", "0.3", "--seed", "7")
+        assert r.returncode == 0, r.stderr[-2000:]
+    for i, (hh, dt) in enumerate([(8, -1.0), (14, 6.0), (20, 6.0)]):
+        name = {8: "s1", 14: "s2", 20: "s0"}[hh]
+        a = xr.open_dataset(tmp_path / "a" / f"{name}_analysis.nc"); b = xr.open_dataset(tmp_path / "b" / f"{name}_analysis.nc")
+        assert a.attrs["persist_dt_h"] == dt and a.attrs["seed"] == 7 + 1000 * i
+        assert np.array_equal(a["temperature"].values, b["temperature"].values)
+    # a different storm in the list gets its own chain and does not feed or break the first storm's chain
+    o = xr.load_dataset(scenes[1]); o.attrs["storm_name"], o.attrs["time"] = "OTHER", "2026-09-22T10:00"; o.to_netcdf(tmp_path / "other.nc")
+    r = _run_cli(tmp_path, scenes + [str(tmp_path / "other.nc")], tmp_path / "mix", "--persist", "0.3", "--seed", "7")
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert xr.open_dataset(tmp_path / "mix" / "other_analysis.nc").attrs["persist_dt_h"] == -1.0
+    assert xr.open_dataset(tmp_path / "mix" / "s2_analysis.nc").attrs["persist_dt_h"] == 6.0
+    # a scene without a time is refused when persistence is on, and a warm-start time outside (final_denoise_t, 1) is refused
+    n = xr.load_dataset(scenes[0]); n.attrs["time"] = "synthetic"; n.to_netcdf(tmp_path / "notime.nc")
+    r = _run_cli(tmp_path, [scenes[0], str(tmp_path / "notime.nc")], tmp_path / "nt", "--persist", "0.3")
+    assert r.returncode != 0 and "valid attrs['time']" in r.stderr
+    r = _run_cli(tmp_path, scenes, tmp_path / "wt", "--persist", "0.3", "--persist-warm-t", "1.5")
+    assert r.returncode != 0 and "--persist-warm-t must lie in" in r.stderr

@@ -143,7 +143,7 @@ class RetrievalEngine:
             attrs={**scene.attrs, "ensemble_size": int(out.samples.shape[0]), "n_steps": self.cfg.guidance.n_steps, "spread_defined": int(out.samples.shape[0] > 1),
                    "persist_dt_h": float(obs.dt_prev_h) if obs.x_prev is not None else -1.0,
                    "persist_sigma": float(self.likelihood.persist_var(obs.dt_prev_h) ** 0.5) if (obs.x_prev is not None and self.likelihood.persist_var(obs.dt_prev_h) is not None) else 0.0,
-                   "persist_warm_t": float(self.cfg.guidance.persist_warm_t)},
+                   "persist_warm_t": float(self.cfg.guidance.persist_warm_t), "seed": int(getattr(self, "seed", None)) if getattr(self, "seed", None) is not None else -1},
         )
         if ice_mean is not None:
             ds["iwp"] = (("y", "x"), ice_mean["iwp"][0, 0].cpu().numpy(), {"units": "kg m-2", "long_name": "analysis ensemble mean ice water path"})
@@ -188,6 +188,9 @@ def main() -> None:
     ap.add_argument("--persist-q", type=float, default=None, help="error growth per sqrt(hour) for --persist (default 0.15)")
     ap.add_argument("--persist-max-gap", type=float, default=None, help="hours beyond which the previous analysis is not used (default 12)")
     ap.add_argument("--persist-warm-t", type=float, default=None, help="also start the reverse chain from the previous analysis diffused to this t (0 = from noise)")
+    ap.add_argument("--seed", type=int, default=None,
+                    help="reproducible sampling: scene i, member k draws its noise from seed + 1000 i + k, so two runs that differ only in "
+                         "a flag (e.g. --persist) are paired sample by sample. Recorded in the output attrs.")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
@@ -209,6 +212,8 @@ def main() -> None:
         cfg.guidance.persist_max_gap_h = args.persist_max_gap
     if args.persist_warm_t is not None:
         cfg.guidance.persist_warm_t = args.persist_warm_t
+    if cfg.guidance.persist_warm_t and not (cfg.guidance.final_denoise_t < cfg.guidance.persist_warm_t < 1.0):
+        ap.error(f"--persist-warm-t must lie in ({cfg.guidance.final_denoise_t}, 1); got {cfg.guidance.persist_warm_t}")
     if args.allsky_slope is not None:
         cfg.guidance.allsky_slope = args.allsky_slope
     if args.ice is not None:
@@ -238,21 +243,29 @@ def main() -> None:
         json.dump(eff, open(os.path.join(args.out, "effective_calibration.json"), "w"), indent=1)
         log.info("effective calibration written to %s (audit first, scatter fit overrides fitted channels)", os.path.join(args.out, "effective_calibration.json"))
 
-    # scenes in time order (needed for --persist; harmless otherwise)
+    # scenes in storm and time order (needed for --persist; harmless otherwise)
     def scene_time(p):
         with xr.open_dataset(p) as d:
             try:
                 return np.datetime64(str(d.attrs.get("time", ""))[:16])
             except ValueError:                                              # synthetic or undated scene
                 return np.datetime64("NaT")
+    def scene_key(p):
+        """(storm name, grid shape, centre resolution) that a persistence background must share with the scene it feeds."""
+        with xr.open_dataset(p) as d:
+            return (str(d.attrs.get("storm_name", "")), tuple(int(n) for n in d["ir"].shape[-2:]) if "ir" in d else ())
     times = [scene_time(p) for p in args.scenes]
     if all(not np.isnat(t) for t in times):
-        args.scenes = [p for _, p in sorted(zip(times, args.scenes), key=lambda z: z[0])]
+        # by storm, then by time, so each storm's persistence chain is contiguous even in a mixed list
+        args.scenes = [p for _, _, p in sorted(zip([scene_key(p) for p in args.scenes], times, args.scenes), key=lambda z: (z[0], z[1]))]
     elif cfg.guidance.persist_sigma0 > 0:
-        log.warning("some scenes carry no time: keeping the given order for --persist, gaps taken as 0 h")
+        bad = [p for p, t in zip(args.scenes, times) if np.isnat(t)]
+        raise SystemExit(f"--persist needs a valid attrs['time'] on every scene; missing or unparsable on {bad[:3]}{' ...' if len(bad) > 3 else ''}")
+    if args.seed is not None:
+        log.info("seed %d: scene i, member k uses seed + 1000 i + k", args.seed)
     ds_obj = HurricaneSceneDataset(args.scenes, cfg.data, engine.norm, downscale=args.downscale)
     os.makedirs(args.out, exist_ok=True)
-    prev_samples, prev_time = None, None
+    prev_samples, prev_time, prev_key = None, None, None
     if cfg.guidance.persist_sigma0 > 0:
         log.info("time continuity on: sigma_p^2 = %.2f^2 + %.2f^2 dt_h, max gap %.0f h, warm start t = %.2f",
                  cfg.guidance.persist_sigma0, cfg.guidance.persist_q, cfg.guidance.persist_max_gap_h, cfg.guidance.persist_warm_t)
@@ -261,16 +274,22 @@ def main() -> None:
         batch = collate([ds_obj[i]])
         if args.no_mw:
             batch["mw_mask"].zero_(), batch["mw"].zero_(), batch["mw_zen"].zero_()
-        t_now = scene_time(args.scenes[i])
+        t_now, key_now = scene_time(args.scenes[i]), scene_key(args.scenes[i])
         x_prev, dt_h = None, 0.0
         if cfg.guidance.persist_sigma0 > 0 and prev_samples is not None:
-            dt_h = 0.0 if (np.isnat(t_now) or np.isnat(prev_time)) else float((t_now - prev_time) / np.timedelta64(1, "h"))
-            if 0 <= dt_h <= cfg.guidance.persist_max_gap_h:
-                x_prev = prev_samples
+            if key_now != prev_key:
+                log.info("scene %s is a different storm or grid (%s vs %s): persistence chain reset", os.path.basename(args.scenes[i]), key_now, prev_key)
             else:
-                log.info("previous analysis %.1f h old: outside the persistence window, starting fresh", dt_h)
+                dt_h = float((t_now - prev_time) / np.timedelta64(1, "h"))
+                if 0 <= dt_h <= cfg.guidance.persist_max_gap_h:
+                    x_prev = prev_samples
+                else:
+                    log.info("previous analysis %.1f h old: outside the persistence window, starting fresh", dt_h)
+        if args.seed is not None:
+            engine.seed = args.seed + 1000 * i
+            torch.manual_seed(engine.seed)                                # the sampler derives member k from initial_seed + k
         out, obs = engine.analyse(batch, ensemble_size=args.ensemble, proxy_no_mw=args.proxy_no_mw, x_prev=x_prev, dt_prev_h=dt_h)
-        prev_samples, prev_time = out.samples.detach(), t_now
+        prev_samples, prev_time, prev_key = out.samples.detach(), t_now, key_now
         truth = batch["state"] if bool(torch.isfinite(batch["state"]).all()) else None     # live scenes carry NaN labels: no RMSE
         result = engine.to_dataset(out, obs, scene, truth=truth)
         path = os.path.join(args.out, os.path.basename(args.scenes[i]).replace(".nc", "_analysis.nc"))
