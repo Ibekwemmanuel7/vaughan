@@ -27,7 +27,8 @@ RAW = os.path.join(HERE, 'raw')
 DASH = os.path.join(RAW, 'dash.json')
 IMAGERY = os.path.join(RAW, 'imagery.json')
 FIGS = {'melissa_summary': os.path.join(RAW, 'melissa_summary.png'), 'weathernext_milton': os.path.join(RAW, 'weathernext_milton.png'),
-        'polo_summary': os.path.join(RAW, 'polo_summary.png'), 'polo_structure': os.path.join(RAW, 'polo_structure.png')}
+        'polo_summary': os.path.join(RAW, 'polo_summary.png'), 'polo_structure': os.path.join(RAW, 'polo_structure.png'),
+        'polo_persist': os.path.join(RAW, 'polo_persist.png')}
 LOGO_PNG = os.path.join(HERE, 'logo', 'vaughan_mark.png')
 LOGO_ON_NAVY = os.path.join(HERE, 'logo', 'vaughan_mark_on_navy.png')
 

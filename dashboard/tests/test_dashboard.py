@@ -113,7 +113,7 @@ def test_polo_section(pw, server):
     page.locator('#polo').scroll_into_view_if_needed()      # the figures are lazy-loaded
     page.locator('#polo .fine').last.scroll_into_view_if_needed()
     page.wait_for_timeout(800)
-    for name in ('polo_summary', 'polo_structure'):
+    for name in ('polo_summary', 'polo_structure', 'polo_persist'):
         ok = page.evaluate(f"() => {{ const i = document.querySelector('img[src=\"img/{name}.webp\"]'); return i && i.complete && i.naturalWidth > 0 }}")
         assert ok, name
     assert page.locator('nav a[href="#polo"]').count() >= 1

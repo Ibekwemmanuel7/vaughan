@@ -39,4 +39,4 @@ is a native control or an ARIA-labelled canvas; the time strip is an arrow-key r
 Strict CSP (no inline script or style), dark scheme, print rules.
 
 
-Polo (September 2026) is a static section like Melissa's: figures from results/polo (polo_summary.png, polo_structure_2026-09-22T2000.png copied to raw/polo_structure.png) and the per-scene table generated from results/polo/polo_scores.csv.
+Polo (September 2026) is a static section like Melissa's: figures from results/polo (polo_summary.png, polo_structure_2026-09-22T2000.png copied to raw/polo_structure.png) and the per-scene table generated from results/polo/polo_scores.csv. The time-continuity subsection uses results/polo/polo_persist.png (copied to raw/) and the numbers from polo_persist_compare.csv.
