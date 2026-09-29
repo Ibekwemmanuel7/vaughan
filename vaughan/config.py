@@ -145,6 +145,15 @@ class GuidanceConfig:
     use_ir_obs: bool = True           # False disables the infrared radiance term outright (not a large sigma)
     use_mw_obs: bool = True           # False disables the microwave radiance term outright
     allsky_max_sigma_K: float = 40.0  # cap on sigma_eff
+    # Time continuity: the previous analysis of the same storm as a second background term next to the proxy,
+    # -||x0 - x_prev||^2 / (2 (sigma_p^2 + r2)) with a random-walk error sigma_p^2 = persist_sigma0^2 + persist_q^2 dt_h
+    # (normalised state units, dt in hours). Each ensemble member is conditioned on its own predecessor. Off by
+    # default (persist_sigma0 = 0) so single-scene runs and old results are unchanged. persist_warm_t > 0 also starts
+    # the reverse chain from the previous state diffused to that time instead of from pure noise (SDEdit-style).
+    persist_sigma0: float = 0.0       # 0 = off; 0.3 is a reasonable start (proxy sigma is 0.5)
+    persist_q: float = 0.15           # error growth per sqrt(hour), normalised units
+    persist_max_gap_h: float = 12.0   # older previous analyses are not used
+    persist_warm_t: float = 0.0       # 0 = start from noise; e.g. 0.5 = start from x_prev diffused to t = 0.5
 
 
 @dataclass

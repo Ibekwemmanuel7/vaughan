@@ -107,8 +107,15 @@ class GuidedScoreSampler:
         """
         B = obs.x_det.shape[0]
         device = obs.x_det.device
+        t_start = 1.0
+        if x_init is None and obs.x_prev is not None and self.cfg.persist_warm_t > 0 and self.lik.persist_var(obs.dt_prev_h) is not None:
+            # warm start: the previous analysis diffused forward to t = persist_warm_t, then denoised from there
+            t0 = torch.full((B,), self.cfg.persist_warm_t, device=device)
+            alpha, sigma = self.sde.marginal_prob(t0)
+            x_init = alpha[:, None, None, None] * obs.x_prev + sigma[:, None, None, None] * torch.randn_like(obs.x_prev)
+            t_start = self.cfg.persist_warm_t
         x = self.sde.prior_sample(obs.x_det.shape, device) if x_init is None else x_init
-        ts = torch.linspace(1.0, self.cfg.final_denoise_t, self.cfg.n_steps + 1, device=device)
+        ts = torch.linspace(t_start, self.cfg.final_denoise_t, self.cfg.n_steps + 1, device=device)
         trace = []
         self.net.eval()
         for i in range(self.cfg.n_steps):
@@ -135,7 +142,7 @@ class GuidedScoreSampler:
         members, trace = [], []
         for k in range(n):
             torch.manual_seed(torch.initial_seed() + k)
-            x0, tr = self.sample_chain(obs, **kw)
+            x0, tr = self.sample_chain(obs.for_member(k), **kw)
             members.append(x0)
             trace.extend([{**d, "member": k} for d in tr])
         samples = torch.stack(members, 0)                                # [N, B, L+1, H, W]

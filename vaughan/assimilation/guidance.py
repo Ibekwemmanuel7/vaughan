@@ -4,6 +4,7 @@ Joint likelihood log p(y | x) used to guide the reverse diffusion (the data-assi
 For a candidate clean state x0_hat (normalised units) we evaluate
 
     log p(y | x0) = - ||x0 - x_det||^2 / (2 sigma_u^2)                                    (1) U-Net proxy
+                    - ||x0 - x_prev||^2 / (2 sigma_p(dt)^2)                                  (1b) previous analysis (optional)
                     - sum_ir  m_ir  ||TB_ir_obs - H_ir(x0)||^2 / (2 sigma_ir^2)              (2) IR radiative constraint
                     - sum_mw  m_mw  ||TB_mw_obs - H_mw(x0)||^2 / (2 sigma_mw^2)              (2) MW radiative constraint
                     - lambda_s * static_stability_penalty(T(x0))                              (3) thermodynamics
@@ -43,9 +44,23 @@ class Observations:
     mw_tb: torch.Tensor                    # [B, C_mw, h, w] K
     mw_mask: torch.Tensor                  # [B, 1, h, w]
     _cloud: Optional[tuple] = None         # cache for the all-sky cloud predictor of the observations
+    x_prev: Optional[torch.Tensor] = None  # previous analysis of the same storm, normalised state units:
+                                           # [B, L+1, H, W] (one background for every member) or [N, B, L+1, H, W] (member k <- member k)
+    dt_prev_h: float = 0.0                 # hours between the previous analysis and this one
 
     def to(self, device) -> "Observations":
-        return Observations(*[t.to(device) for t in (self.x_det, self.ir_tb, self.ir_mask, self.mw_tb, self.mw_mask)])
+        o = Observations(*[t.to(device) for t in (self.x_det, self.ir_tb, self.ir_mask, self.mw_tb, self.mw_mask)])
+        o.x_prev = None if self.x_prev is None else self.x_prev.to(device)
+        o.dt_prev_h = self.dt_prev_h
+        return o
+
+    def for_member(self, k: int) -> "Observations":
+        """The observations as member k of the ensemble sees them: its own predecessor as the persistence background."""
+        if self.x_prev is None or self.x_prev.dim() != 5:
+            return self
+        o = Observations(self.x_det, self.ir_tb, self.ir_mask, self.mw_tb, self.mw_mask, self._cloud)
+        o.x_prev, o.dt_prev_h = self.x_prev[k % self.x_prev.shape[0]], self.dt_prev_h
+        return o
 
 
 class JointLikelihood(nn.Module):
@@ -147,6 +162,12 @@ class JointLikelihood(nn.Module):
 
         n_pix = float(x0_hat.shape[-2] * x0_hat.shape[-1])
         j_unet = 0.5 * ((x0_hat - obs.x_det) ** 2).sum(dim=(1, 2, 3)) / (c.sigma_unet**2 + r2)
+        # (1b) persistence background: the previous analysis with a random-walk error that grows with the gap
+        sp2 = self.persist_var(obs.dt_prev_h)
+        if sp2 is not None and obs.x_prev is not None:
+            j_prev = 0.5 * ((x0_hat - obs.x_prev) ** 2).sum(dim=(1, 2, 3)) / (sp2 + r2)
+        else:
+            j_prev = torch.zeros(B, device=x0_hat.device, dtype=x0_hat.dtype)
         j_ir = 0.5 * ((r_ir**2) * ir_w * obs.ir_mask).sum(dim=(1, 2, 3))
         j_mw = 0.5 * ((r_mw**2) * mw_w * obs.mw_mask).sum(dim=(1, 2, 3))
         # Explicit switches: a disabled radiance term contributes exactly zero, whatever the all-sky cap does.
@@ -158,7 +179,15 @@ class JointLikelihood(nn.Module):
         pen = n_pix / (1.0 + r2)
         j_stab = torch.stack([static_stability_penalty(temp[i : i + 1], self.data_cfg.levels_hpa) for i in range(B)]) * c.lambda_stability * pen
         j_pnn = torch.stack([precip_nonneg_penalty(precip[i : i + 1]) for i in range(B)]) * c.lambda_precip_nonneg * pen
-        return {"unet": j_unet, "ir": j_ir, "mw": j_mw, "stability": j_stab, "precip_nonneg": j_pnn}
+        return {"unet": j_unet, "prev": j_prev, "ir": j_ir, "mw": j_mw, "stability": j_stab, "precip_nonneg": j_pnn}
+
+    def persist_var(self, dt_h: float) -> Optional[float]:
+        """sigma_p^2 for a previous analysis dt_h hours old (normalised units^2), or None when the term is off
+        (persist_sigma0 == 0) or the gap exceeds persist_max_gap_h."""
+        c = self.cfg
+        if c.persist_sigma0 <= 0 or dt_h < 0 or dt_h > c.persist_max_gap_h:
+            return None
+        return float(c.persist_sigma0**2 + c.persist_q**2 * dt_h)
 
     def _temp_var_K2(self) -> float:
         """Mean variance (K^2) of one normalised temperature unit, from the normaliser."""

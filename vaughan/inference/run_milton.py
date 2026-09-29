@@ -91,7 +91,10 @@ class RetrievalEngine:
     def proxy(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
         return self.unet(batch["ir"], batch["ir_mask"], batch["mw"], batch["mw_mask"], batch.get("mw_zen"))
 
-    def analyse(self, batch: Dict[str, torch.Tensor], ensemble_size: Optional[int] = None, log_every: int = 50, proxy_no_mw: bool = False) -> tuple[SamplerOutput, Observations]:
+    def analyse(self, batch: Dict[str, torch.Tensor], ensemble_size: Optional[int] = None, log_every: int = 50, proxy_no_mw: bool = False,
+                x_prev: Optional[torch.Tensor] = None, dt_prev_h: float = 0.0) -> tuple[SamplerOutput, Observations]:
+        """x_prev: the previous analysis of the same storm as a persistence background ([N, B, C, H, W] members or [B, C, H, W]),
+        dt_prev_h hours old; used only when cfg.guidance.persist_sigma0 > 0 (see GuidanceConfig)."""
         batch = {k: v.to(self.device) for k, v in batch.items()}
         if proxy_no_mw:      # experiment: the proxy sees only the infrared; ATMS reaches the state through the physics likelihood alone
             pb = dict(batch); pb["mw"] = torch.zeros_like(batch["mw"]); pb["mw_mask"] = torch.zeros_like(batch["mw_mask"]); pb["mw_zen"] = torch.zeros_like(batch["mw_zen"])
@@ -99,6 +102,8 @@ class RetrievalEngine:
         else:
             x_det = self.proxy(batch)                                                                      # [B, L+1, H, W]
         obs = Observations(x_det, batch["ir_raw"], batch["ir_mask"], batch["mw_raw"], batch["mw_mask"])
+        if x_prev is not None:
+            obs.x_prev, obs.dt_prev_h = x_prev.to(self.device), float(dt_prev_h)
         out = self.sampler.sample(obs, ensemble_size=ensemble_size, log_every=log_every, callback=lambda d: log.info(f"  step {d['step']:4d} ir_rmse={d['ir_rmse_K']:.2f}K mw_rmse={d['mw_rmse_K']:.2f}K"))
         return out, obs
 
@@ -135,7 +140,10 @@ class RetrievalEngine:
                 "lat": (("y", "x"), _block_mean(scene["lat"].values, t_mean.shape[-2:])), "lon": (("y", "x"), _block_mean(scene["lon"].values, t_mean.shape[-2:])),
             },
             coords={"level": list(d.levels_hpa), "layer": np.arange(d.n_levels - 1), "ir_channel": list(d.ir_channels), "mw_channel": list(d.mw_channels)},
-            attrs={**scene.attrs, "ensemble_size": int(out.samples.shape[0]), "n_steps": self.cfg.guidance.n_steps, "spread_defined": int(out.samples.shape[0] > 1)},
+            attrs={**scene.attrs, "ensemble_size": int(out.samples.shape[0]), "n_steps": self.cfg.guidance.n_steps, "spread_defined": int(out.samples.shape[0] > 1),
+                   "persist_dt_h": float(obs.dt_prev_h) if obs.x_prev is not None else -1.0,
+                   "persist_sigma": float(self.likelihood.persist_var(obs.dt_prev_h) ** 0.5) if (obs.x_prev is not None and self.likelihood.persist_var(obs.dt_prev_h) is not None) else 0.0,
+                   "persist_warm_t": float(self.cfg.guidance.persist_warm_t)},
         )
         if ice_mean is not None:
             ds["iwp"] = (("y", "x"), ice_mean["iwp"][0, 0].cpu().numpy(), {"units": "kg m-2", "long_name": "analysis ensemble mean ice water path"})
@@ -174,6 +182,12 @@ def main() -> None:
     ap.add_argument("--scatter-fit", default=None, help="JSON with the per-channel ice-scattering fit from the audit ({channel: {a_K, I0, bias_K, rmse_K}}), or a table name inside --rtm-audit")
     ap.add_argument("--allsky", action="store_true", help="all-sky observation error: downweight cloud-affected pixels with the symmetric cloud predictor instead of dropping channels")
     ap.add_argument("--allsky-slope", type=float, default=None, help="K of extra error per K of symmetric cloud depression (default 0.5)")
+    ap.add_argument("--persist", type=float, default=0.0, metavar="SIGMA0",
+                    help="time continuity: use the previous analysis of the storm as a background with error sqrt(SIGMA0^2 + q^2 dt_h) "
+                         "(normalised units; 0.3 is a reasonable start, the proxy sigma is 0.5). Scenes are processed in time order.")
+    ap.add_argument("--persist-q", type=float, default=None, help="error growth per sqrt(hour) for --persist (default 0.15)")
+    ap.add_argument("--persist-max-gap", type=float, default=None, help="hours beyond which the previous analysis is not used (default 12)")
+    ap.add_argument("--persist-warm-t", type=float, default=None, help="also start the reverse chain from the previous analysis diffused to this t (0 = from noise)")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
@@ -188,6 +202,13 @@ def main() -> None:
     if args.no_rtm:
         cfg.guidance.use_ir_obs, cfg.guidance.use_mw_obs = False, False     # exact zero, immune to the all-sky cap
     cfg.guidance.allsky = bool(args.allsky)
+    cfg.guidance.persist_sigma0 = float(args.persist)
+    if args.persist_q is not None:
+        cfg.guidance.persist_q = args.persist_q
+    if args.persist_max_gap is not None:
+        cfg.guidance.persist_max_gap_h = args.persist_max_gap
+    if args.persist_warm_t is not None:
+        cfg.guidance.persist_warm_t = args.persist_warm_t
     if args.allsky_slope is not None:
         cfg.guidance.allsky_slope = args.allsky_slope
     if args.ice is not None:
@@ -217,14 +238,39 @@ def main() -> None:
         json.dump(eff, open(os.path.join(args.out, "effective_calibration.json"), "w"), indent=1)
         log.info("effective calibration written to %s (audit first, scatter fit overrides fitted channels)", os.path.join(args.out, "effective_calibration.json"))
 
+    # scenes in time order (needed for --persist; harmless otherwise)
+    def scene_time(p):
+        with xr.open_dataset(p) as d:
+            try:
+                return np.datetime64(str(d.attrs.get("time", ""))[:16])
+            except ValueError:                                              # synthetic or undated scene
+                return np.datetime64("NaT")
+    times = [scene_time(p) for p in args.scenes]
+    if all(not np.isnat(t) for t in times):
+        args.scenes = [p for _, p in sorted(zip(times, args.scenes), key=lambda z: z[0])]
+    elif cfg.guidance.persist_sigma0 > 0:
+        log.warning("some scenes carry no time: keeping the given order for --persist, gaps taken as 0 h")
     ds_obj = HurricaneSceneDataset(args.scenes, cfg.data, engine.norm, downscale=args.downscale)
     os.makedirs(args.out, exist_ok=True)
+    prev_samples, prev_time = None, None
+    if cfg.guidance.persist_sigma0 > 0:
+        log.info("time continuity on: sigma_p^2 = %.2f^2 + %.2f^2 dt_h, max gap %.0f h, warm start t = %.2f",
+                 cfg.guidance.persist_sigma0, cfg.guidance.persist_q, cfg.guidance.persist_max_gap_h, cfg.guidance.persist_warm_t)
     for i in range(len(ds_obj)):
         scene = xr.load_dataset(args.scenes[i])
         batch = collate([ds_obj[i]])
         if args.no_mw:
             batch["mw_mask"].zero_(), batch["mw"].zero_(), batch["mw_zen"].zero_()
-        out, obs = engine.analyse(batch, ensemble_size=args.ensemble, proxy_no_mw=args.proxy_no_mw)
+        t_now = scene_time(args.scenes[i])
+        x_prev, dt_h = None, 0.0
+        if cfg.guidance.persist_sigma0 > 0 and prev_samples is not None:
+            dt_h = 0.0 if (np.isnat(t_now) or np.isnat(prev_time)) else float((t_now - prev_time) / np.timedelta64(1, "h"))
+            if 0 <= dt_h <= cfg.guidance.persist_max_gap_h:
+                x_prev = prev_samples
+            else:
+                log.info("previous analysis %.1f h old: outside the persistence window, starting fresh", dt_h)
+        out, obs = engine.analyse(batch, ensemble_size=args.ensemble, proxy_no_mw=args.proxy_no_mw, x_prev=x_prev, dt_prev_h=dt_h)
+        prev_samples, prev_time = out.samples.detach(), t_now
         truth = batch["state"] if bool(torch.isfinite(batch["state"]).all()) else None     # live scenes carry NaN labels: no RMSE
         result = engine.to_dataset(out, obs, scene, truth=truth)
         path = os.path.join(args.out, os.path.basename(args.scenes[i]).replace(".nc", "_analysis.nc"))

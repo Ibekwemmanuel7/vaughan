@@ -218,3 +218,65 @@ meta = {'storm': 'POLO', 'atcf_id': 'EP172026', 'system': 'Vaughan (Milton-train
 json.dump(meta, open(f'{A}/polo_results/polo_structure.json', 'w'), indent=1)
 print('wrote', f'{A}/polo_results/polo_structure.json', 'with', len(D), 'scenes')
 """
+
+# ---------- CELL P5: time continuity. Rerun Polo with the previous analysis as a background ----------
+# Each scene is now conditioned on the analysis six hours earlier (member k on member k), with background
+# error sqrt(0.3^2 + 0.15^2 dt_h) in normalised units (0.47 at 6 h; the proxy term uses 0.5). Scenes are
+# processed in time order; the first one is unchanged. Writes to polo_analysis_persist, so the plain run stays.
+# About the same time per scene as P2. Add --persist-warm-t 0.5 to also start each chain from the previous
+# analysis (half the steps are then spent near the data manifold); leave it out for the first comparison.
+"""
+%cd /content
+!python -m vaughan.inference.run_milton --scenes /content/data/polo/scenes/POLO_*.nc \
+    --stats $A/norm_stats.json --unet $A/checkpoints/unet.pt --score $A/checkpoints/score.pt \
+    --out $A/polo_analysis_persist --preset small --downscale 2 --ensemble 8 --steps 500 \
+    --rtm-audit $A/rtm_audit.json --audit-table archive_2023 --persist 0.3
+"""
+
+# ---------- CELL P6: plain against persistence, warm core through time ----------
+# The question is whether the 300 hPa warm core becomes a smoother function of time without losing its
+# agreement with the best-track intensity (rank correlation) or its fit to the sounder. Jumps between
+# neighbouring scenes are summarised as the mean absolute six-hour change; a smaller number with the same
+# or better rank correlation is the result wanted. The fit column must not get worse: if it does, the
+# background is too tight (raise --persist or --persist-q). The fit uses the calibrated channels only.
+# Result, Polo, 31 scenes, --persist 0.3 (28 Sept 2026): rank correlation 0.79 -> 0.87, mean |6 h change|
+# 0.81 -> 0.39 K, bias-corrected ATMS fit ch5-9 3.93/2.28/1.20/0.68/0.64 -> 3.91/2.33/1.24/0.72/0.60 K,
+# peak warm core 5.7 -> 4.9 K, spread 0.072 -> 0.053 K (the members become more alike; see the roadmap).
+"""
+import pandas as pd
+bias = {int(c): b for c, b, s in zip(cal['mw_channels'], cal['mw_bias_K'], cal['mw_sigma_K']) if s is not None}   # calibrated channels only
+from scipy.stats import spearmanr
+def series(folder):
+    rows = []
+    for f in sorted(glob.glob(f'{A}/{folder}/POLO_*_analysis.nc')):
+        ds = xr.load_dataset(f); lev = [int(v) for v in ds['level'].values]; k = lev.index(300)
+        t = np.datetime64(str(ds.attrs['time'])[:16])
+        xb = (bt.times - bt.times[0]) / np.timedelta64(1, 's'); xt = (np.datetime64(t, 'ns') - bt.times[0]) / np.timedelta64(1, 's')
+        r = {'time': t, 'wc300': float(ds['warm_core_anomaly'].values[k]), 'vmax': float(np.interp(xt, xb, bt.wind_kt)),
+             'spread300': float(ds['temperature_spread'].values[k].mean()), 'dt_prev_h': float(ds.attrs.get('persist_dt_h', -1))}
+        sc = xr.load_dataset(f'{SC}/' + os.path.basename(f).replace('_analysis', ''))
+        if float(sc['mw_mask'].mean()) > 0.05:
+            wm = sc['mw_mask'].values.astype(float); h = ds['mw_tb_observed'].shape[-1]; f2 = wm.shape[0] // h
+            wmm = wm[: wm.shape[0] - wm.shape[0] % f2, : wm.shape[1] - wm.shape[1] % f2].reshape(h, f2, h, f2).mean((1, 3)) > 0.5
+            es = []
+            for ci, ch in enumerate(ds['mw_channel'].values):
+                if int(ch) in bias:
+                    e = (ds['mw_tb_simulated'].values[ci] - ds['mw_tb_observed'].values[ci] - bias[int(ch)])[wmm]; es.append(e[np.isfinite(e)])
+            r['fit_atms_K'] = float(np.sqrt(np.mean(np.concatenate(es) ** 2)))
+        rows.append(r)
+    return pd.DataFrame(rows).sort_values('time')
+P, Q = series('polo_analysis'), series('polo_analysis_persist')
+M = P.merge(Q, on='time', suffixes=('_plain', '_persist'))
+for tag in ('plain', 'persist'):
+    wc = M[f'wc300_{tag}'].values
+    print(f'{tag:8s} rank corr vs Vmax {spearmanr(wc, M["vmax_plain"]).correlation:.2f}   mean |6 h change| {np.abs(np.diff(wc)).mean():.2f} K   '
+          f'ATMS fit {M[f"fit_atms_K_{tag}"].mean():.2f} K   spread {M[f"spread300_{tag}"].mean():.3f} K')
+print(M[['time', 'vmax_plain', 'wc300_plain', 'wc300_persist', 'fit_atms_K_plain', 'fit_atms_K_persist', 'dt_prev_h_persist']].round(2).to_string(index=False))
+fig, ax = plt.subplots(figsize=(9, 3.6))
+ax.plot(M['time'], M['wc300_plain'], 'o-', color='0.6', label='analysis, each scene alone')
+ax.plot(M['time'], M['wc300_persist'], 'o-', color='C3', label='analysis, previous analysis as background')
+ax.set_ylabel('300 hPa warm core (K)'); ax2 = ax.twinx(); ax2.plot(M['time'], M['vmax_plain'], 'k--', lw=1, label='best-track Vmax'); ax2.set_ylabel('kt')
+ax.legend(loc='upper left', fontsize=8); ax2.legend(loc='upper right', fontsize=8); ax.set_title('Hurricane Polo, time continuity')
+fig.autofmt_xdate(); fig.tight_layout(); fig.savefig(f'{A}/polo_results/polo_persist.png', dpi=150)
+M.to_csv(f'{A}/polo_results/polo_persist_compare.csv', index=False); print('saved polo_persist.png and polo_persist_compare.csv')
+"""
