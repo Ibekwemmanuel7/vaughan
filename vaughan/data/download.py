@@ -432,12 +432,35 @@ def download_era5(times: Sequence, levels_hpa: Sequence[int], area: Sequence[flo
     out = {}
     for day, hours in sorted(by_day.items()):
         dst = os.path.join(out_dir, f"era5_t_{tag}_{day}.nc")
-        if not os.path.exists(dst):
+        want = sorted(set(hours))
+        have = _era5_hours(dst) if os.path.exists(dst) else None
+        if have is not None and not set(want) <= have:
+            # a cached day fetched for another analysis grid (e.g. 00/06/12/18 when 02/08/14/20 is wanted now):
+            # the scene builder picks the nearest hour, so a missing hour would silently label a scene with
+            # ERA5 from up to three hours away. Refetch the union of the hours.
+            log.info(f"ERA5 {day}: cached file has hours {sorted(have)}, {sorted(set(want) - have)} missing; refetching")
+            want = sorted(set(want) | have)
+            have = None
+        if have is None:
             d = datetime.strptime(day, "%Y-%m-%d")
-            log.info(f"ERA5 request {day} hours {sorted(set(hours))}")
-            _retry(lambda: client.retrieve("reanalysis-era5-pressure-levels", era5_request(d, hours, levels_hpa, area, cloud_ice=cloud_ice), dst), f"ERA5 {day}", attempts=4, base_delay=30.0)
+            log.info(f"ERA5 request {day} hours {want}")
+            _retry(lambda: client.retrieve("reanalysis-era5-pressure-levels", era5_request(d, want, levels_hpa, area, cloud_ice=cloud_ice), dst), f"ERA5 {day}", attempts=4, base_delay=30.0)
         out[day] = dst
     return out
+
+
+def _era5_hours(path: str):
+    """UTC hours present in a cached ERA5 daily file (set of int), or None if the file cannot be read."""
+    import xarray as xr
+    try:
+        with xr.open_dataset(path) as ds:
+            tname = "valid_time" if "valid_time" in ds.dims else ("time" if "time" in ds.dims else None)
+            if tname is None:
+                return None
+            return set(int(h) for h in ds[tname].dt.hour.values)
+    except Exception as e:                                                 # noqa: BLE001
+        log.warning(f"{path}: cannot read cached ERA5 hours ({e}); refetching")
+        return None
 
 
 # ==============================================================================================

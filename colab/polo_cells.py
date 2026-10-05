@@ -283,3 +283,76 @@ fig.autofmt_xdate(); fig.tight_layout(); fig.savefig(f'{A}/polo_results/polo_per
 M['gap_h'] = M['time'].diff().dt.total_seconds() / 3600
 M.to_csv(f'{A}/polo_results/polo_persist_compare.csv', index=False); print('saved polo_persist.png and polo_persist_compare.csv')
 """
+
+# ---------- CELL P7: the ERA5 benchmark, once ERA5T covers the period ----------
+# On the PC, rebuild the same 31 scenes with labels (ERA5T temperature through CDS; raw GOES/ATMS files are reused):
+#     python -m vaughan.scripts.prepare_milton --root data\polo --track atcf --atcf-id EP172026 --storm POLO ^
+#         --start 2026-09-21T00 --end 2026-09-25T00 --goes-satellite goes19 --rebuild
+#     Compress-Archive -Path data\polo\scenes\POLO_*.nc -DestinationPath polo_scenes_era5.zip -Force
+# upload polo_scenes_era5.zip to MyDrive/milton_da_upload/ and run this cell. The analyses are NOT rerun: the retrieval
+# never read the labels, so the files in polo_analysis and polo_analysis_persist are scored as they are.
+# Scores: inner-core (16 x 16 px, about 70 km) and domain temperature RMSE at 300 hPa and over all levels, the ERA5 warm
+# core with the package definition (5 x 5 centre minus the environment beyond 48 px) against the retrieved one, and rain
+# against the IMERG that the rebuilt scene carries. The Milton/Melissa numbers to compare with: inner-core 1.13 / 0.91 K
+# on sounder scenes, 1.77 / 1.15 K over all scenes.
+"""
+import glob, json, os, shutil
+import numpy as np, pandas as pd, xarray as xr
+import matplotlib.pyplot as plt
+from scipy.stats import spearmanr
+UP = '/content/drive/MyDrive/milton_da_upload'; A = '/content/drive/MyDrive/milton_artifacts'
+SC = '/content/data/polo/scenes_era5'; os.makedirs(SC, exist_ok=True)
+!unzip -o -q $UP/polo_scenes_era5.zip -d $SC
+for f in glob.glob(f'{SC}/**/POLO_*.nc', recursive=True):
+    if os.path.dirname(f) != SC: shutil.move(f, f'{SC}/' + os.path.basename(f))
+S = sorted(glob.glob(f'{SC}/POLO_*.nc')); print(len(S), 'rebuilt scenes;', sum('temp' in xr.open_dataset(f) and np.isfinite(xr.open_dataset(f)['temp'].values).all() for f in S), 'with ERA5 temperature')
+CORE_HALF = 8
+def to_grid(a, shape):
+    if a.shape == shape: return a
+    f = a.shape[0] // shape[0]
+    return a[: a.shape[0] - a.shape[0] % f, : a.shape[1] - a.shape[1] % f].reshape(shape[0], f, shape[1], f).mean((1, 3))
+def warm_core(t, radius_px=48):
+    H, W = t.shape; yy, xx = np.mgrid[:H, :W]; r = np.sqrt((yy - H / 2) ** 2 + (xx - W / 2) ** 2)
+    return float(t[H // 2 - 2: H // 2 + 3, W // 2 - 2: W // 2 + 3].mean() - t[r > radius_px].mean())
+def rm(a, b, sl=None):
+    aa, bb = (a[..., sl, sl], b[..., sl, sl]) if sl is not None else (a, b)
+    ok = np.isfinite(aa) & np.isfinite(bb)
+    return float(np.sqrt(np.mean((aa[ok] - bb[ok]) ** 2))) if ok.mean() > 0.5 else np.nan
+rows = []
+for run in ('polo_analysis', 'polo_analysis_persist'):
+    for f in sorted(glob.glob(f'{A}/{run}/POLO_*_analysis.nc')):
+        sc_path = f'{SC}/' + os.path.basename(f).replace('_analysis', '')
+        if not os.path.exists(sc_path): continue
+        ds = xr.load_dataset(f); sc = xr.load_dataset(sc_path)
+        if 'temp' not in sc or not np.isfinite(sc['temp'].values).all(): continue
+        lev = [int(v) for v in ds['level'].values]; k = lev.index(300)
+        H = ds['temperature'].shape[-1]; c = H // 2; s = slice(c - CORE_HALF, c + CORE_HALF)
+        T = np.stack([to_grid(sc['temp'].values[i], (H, H)) for i in range(len(lev))])
+        ta, tu = ds['temperature'].values, ds['temperature_unet'].values
+        r = {'run': run.replace('polo_analysis', 'plain').replace('_persist', 'persist').replace('plain', 'plain', 1), 'time': np.datetime64(str(ds.attrs['time'])[:16]),
+             'atms': float(sc['mw_mask'].mean()) > 0.05,
+             'core_rmse_300_K': rm(ta[k], T[k], s), 'core_rmse_300_unet_K': rm(tu[k], T[k], s),
+             'core_rmse_all_K': rm(ta, T, s), 'domain_rmse_all_K': rm(ta, T), 'domain_rmse_all_unet_K': rm(tu, T),
+             'wc300_K': warm_core(ta[k]), 'wc300_unet_K': warm_core(tu[k]), 'wc300_era5_K': warm_core(T[k]),
+             'spread_core_300_K': float(ds['temperature_spread'].values[k][s, s].mean())}
+        if 'precip' in sc and np.isfinite(sc['precip'].values).all():
+            pt = to_grid(sc['precip'].values, ds['precip'].shape)
+            r['rain_rmse_imerg_mmh'] = rm(ds['precip'].values, pt); r['core_rain_mmh'] = float(np.nanmean(ds['precip'].values[s, s])); r['imerg_core_rain_mmh'] = float(np.nanmean(pt[s, s]))
+        rows.append(r); ds.close(); sc.close()
+E = pd.DataFrame(rows).sort_values(['run', 'time'])
+E['run'] = E['run'].replace({'plainpersist': 'persist'})
+for run, g in E.groupby('run'):
+    print(f"{run:8s} n={len(g):2d}  inner-core 300 hPa RMSE vs ERA5: sounder scenes {g[g.atms].core_rmse_300_K.mean():.2f} K (U-Net {g[g.atms].core_rmse_300_unet_K.mean():.2f}), "
+          f"all {g.core_rmse_300_K.mean():.2f} K (U-Net {g.core_rmse_300_unet_K.mean():.2f});  domain all levels {g.domain_rmse_all_K.mean():.2f} K (U-Net {g.domain_rmse_all_unet_K.mean():.2f});  "
+          f"warm core vs ERA5: bias {(g.wc300_K - g.wc300_era5_K).mean():+.2f} K, RMSE {np.sqrt(((g.wc300_K - g.wc300_era5_K) ** 2).mean()):.2f} K, rank corr {spearmanr(g.wc300_K, g.wc300_era5_K).correlation:.2f}")
+P = E[E.run == 'plain'].set_index('time'); Q = E[E.run == 'persist'].set_index('time')
+print(pd.DataFrame({'era5_wc': P.wc300_era5_K, 'plain_wc': P.wc300_K, 'persist_wc': Q.wc300_K, 'plain_core_rmse': P.core_rmse_300_K, 'persist_core_rmse': Q.core_rmse_300_K, 'atms': P.atms}).round(2).to_string())
+fig, ax = plt.subplots(2, 1, figsize=(9, 6.5), sharex=True)
+ax[0].plot(P.index, P.wc300_era5_K, 'k-', lw=2, label='ERA5T'); ax[0].plot(P.index, P.wc300_K, 'o-', color='0.6', label='analysis, each scene alone')
+ax[0].plot(Q.index, Q.wc300_K, 'o-', color='C3', label='analysis, persistence background'); ax[0].set_ylabel('300 hPa warm core (K)'); ax[0].legend(fontsize=8)
+ax[1].plot(P.index, P.core_rmse_300_K, 'o-', color='0.6', label='plain'); ax[1].plot(Q.index, Q.core_rmse_300_K, 'o-', color='C3', label='persistence')
+ax[1].plot(P.index, P.core_rmse_300_unet_K, 's:', color='C0', label='U-Net'); ax[1].set_ylabel('inner-core RMSE vs ERA5 (K)'); ax[1].legend(fontsize=8)
+for t in P.index[P.atms]: ax[1].axvline(t, color='0.85', lw=0.8, zorder=0)
+ax[0].set_title('Hurricane Polo against ERA5T'); fig.autofmt_xdate(); fig.tight_layout(); fig.savefig(f'{A}/polo_results/polo_era5.png', dpi=150)
+E.to_csv(f'{A}/polo_results/polo_era5_scores.csv', index=False); print('saved polo_era5.png and polo_era5_scores.csv')
+"""
