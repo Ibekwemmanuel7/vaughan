@@ -176,3 +176,54 @@ def test_cli_orders_by_time_pairs_seeds_and_guards_the_sequence(tmp_path):
     assert r.returncode != 0 and "valid attrs['time']" in r.stderr
     r = _run_cli(tmp_path, scenes, tmp_path / "wt", "--persist", "0.3", "--persist-warm-t", "1.5")
     assert r.returncode != 0 and "--persist-warm-t must lie in" in r.stderr
+
+
+def test_cli_observation_aware_background(tmp_path):
+    """sigma0 is scaled by --persist-ir-prev after an IR-only analysis and by --persist-mw-now on a sounder scene."""
+    import xarray as xr
+    scenes = _cli_fixture(tmp_path)                                  # synthetic scenes all carry sounder coverage
+    ir = xr.load_dataset(scenes[1]); ir["mw_mask"].values[:] = 0; ir.attrs["time"] = "2026-09-22T08:00"; ir.to_netcdf(scenes[1])   # 08 UTC: IR only
+    r = _run_cli(tmp_path, scenes, tmp_path / "oa", "--persist", "0.3", "--persist-ir-prev", "2", "--persist-mw-now", "2", "--seed", "1")
+    assert r.returncode == 0, r.stderr[-2000:]
+    a08 = xr.open_dataset(tmp_path / "oa" / "s1_analysis.nc"); a14 = xr.open_dataset(tmp_path / "oa" / "s2_analysis.nc"); a20 = xr.open_dataset(tmp_path / "oa" / "s0_analysis.nc")
+    assert a08.attrs["persist_sigma0"] == 0.0                                           # first scene, no background
+    assert abs(a14.attrs["persist_sigma0"] - 0.3 * 2 * 2) < 1e-9                        # sounder scene after an IR-only analysis: x4
+    assert abs(a20.attrs["persist_sigma0"] - 0.3 * 2) < 1e-9                            # sounder scene after a sounder analysis: x2
+    assert abs(a20.attrs["persist_sigma"] - np.sqrt(0.6 ** 2 + 0.15 ** 2 * 6)) < 1e-6   # the recorded sigma uses the scaled sigma0
+
+
+def test_cli_rejects_bad_factors_and_records_provenance(tmp_path):
+    import xarray as xr
+    scenes = _cli_fixture(tmp_path)
+    for flag, val in (("--persist-ir-prev", "0"), ("--persist-mw-now", "-1"), ("--persist-ir-prev", "nan")):
+        r = _run_cli(tmp_path, scenes[:1], tmp_path / "bad", "--persist", "0.3", flag, val)
+        assert r.returncode != 0 and "positive finite factor" in r.stderr, (flag, val)
+    r = _run_cli(tmp_path, scenes[:1], tmp_path / "prov", "--seed", "3")
+    assert r.returncode == 0, r.stderr[-2000:]
+    a = xr.open_dataset(tmp_path / "prov" / "s0_analysis.nc")
+    import hashlib
+    assert a.attrs["scene_sha256"] == hashlib.sha256(open(scenes[0], "rb").read()).hexdigest()
+    assert a.attrs["ir_coverage"] == 1.0 and 0 <= a.attrs["mw_coverage"] <= 1 and "--seed 3" in a.attrs["cli"]
+
+
+
+def test_cli_resume_skips_finished_scenes_and_continues_the_chain(tmp_path):
+    """A run stopped after two of three scenes and restarted with --resume gives the same third analysis as an uninterrupted run."""
+    import os, xarray as xr
+    scenes = _cli_fixture(tmp_path)
+    r = _run_cli(tmp_path, scenes, tmp_path / "full", "--persist", "0.3", "--seed", "7", "--resume")
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert all((tmp_path / "full" / f"s{i}_members.pt").exists() for i in range(3))     # members saved for the chain
+    r = _run_cli(tmp_path, scenes, tmp_path / "part", "--persist", "0.3", "--seed", "7", "--resume")
+    assert r.returncode == 0, r.stderr[-2000:]
+    os.remove(tmp_path / "part" / "s0_analysis.nc"); os.remove(tmp_path / "part" / "s0_members.pt")   # 20 UTC: the "stopped" scene
+    r = _run_cli(tmp_path, scenes, tmp_path / "part", "--persist", "0.3", "--seed", "7", "--resume")
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert r.stderr.count("exists, skipped") == 2 and "wrote" in r.stderr
+    full = xr.open_dataset(tmp_path / "full" / "s0_analysis.nc"); part = xr.open_dataset(tmp_path / "part" / "s0_analysis.nc")
+    assert part.attrs["persist_dt_h"] == 6.0 and part.attrs["seed"] == 7 + 2000
+    assert np.array_equal(full["temperature"].values, part["temperature"].values)
+    # a finished analysis made from a different scene file is redone, not trusted
+    s = xr.load_dataset(scenes[1]); s.attrs["note"] = "edited"; s.to_netcdf(scenes[1])
+    r = _run_cli(tmp_path, scenes, tmp_path / "part", "--persist", "0.3", "--seed", "7", "--resume")
+    assert r.returncode == 0 and "checksum differs" in r.stderr, r.stderr[-2000:]

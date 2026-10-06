@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import sys
 from typing import Dict, Optional
 
 import numpy as np
@@ -143,6 +144,7 @@ class RetrievalEngine:
             attrs={**scene.attrs, "ensemble_size": int(out.samples.shape[0]), "n_steps": self.cfg.guidance.n_steps, "spread_defined": int(out.samples.shape[0] > 1),
                    "persist_dt_h": float(obs.dt_prev_h) if obs.x_prev is not None else -1.0,
                    "persist_sigma": float(self.likelihood.persist_var(obs.dt_prev_h) ** 0.5) if (obs.x_prev is not None and self.likelihood.persist_var(obs.dt_prev_h) is not None) else 0.0,
+                   "persist_sigma0": float(self.cfg.guidance.persist_sigma0) if obs.x_prev is not None else 0.0,
                    "persist_warm_t": float(self.cfg.guidance.persist_warm_t), "seed": int(getattr(self, "seed", None)) if getattr(self, "seed", None) is not None else -1},
         )
         if ice_mean is not None:
@@ -156,6 +158,15 @@ class RetrievalEngine:
             ds["temperature_rmse_vs_era5"] = (("level",), torch.sqrt(((t_mean - t_true[0]) ** 2).mean((-2, -1))).cpu().numpy())
             ds["precip_rmse_vs_imerg"] = float(torch.sqrt(((p_mean - p_true[0]) ** 2).mean()))
         return ds
+
+
+def _sha256(path: str) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def main() -> None:
@@ -188,9 +199,19 @@ def main() -> None:
     ap.add_argument("--persist-q", type=float, default=None, help="error growth per sqrt(hour) for --persist (default 0.15)")
     ap.add_argument("--persist-max-gap", type=float, default=None, help="hours beyond which the previous analysis is not used (default 12)")
     ap.add_argument("--persist-warm-t", type=float, default=None, help="also start the reverse chain from the previous analysis diffused to this t (0 = from noise)")
+    ap.add_argument("--persist-ir-prev", type=float, default=1.0, metavar="FACTOR",
+                    help="observation-aware background: multiply SIGMA0 by FACTOR when the previous analysis had no sounder coverage "
+                         "(an infrared-only analysis is a weaker background; 2 is a reasonable start, 1 = off)")
+    ap.add_argument("--persist-mw-now", type=float, default=1.0, metavar="FACTOR",
+                    help="observation-aware background: multiply SIGMA0 by FACTOR when the current scene has sounder coverage "
+                         "(the sounder should not be pulled toward an older analysis; 2 is a reasonable start, 1 = off)")
     ap.add_argument("--seed", type=int, default=None,
                     help="reproducible sampling: scene i, member k draws its noise from seed + 1000 i + k, so two runs that differ only in "
                          "a flag (e.g. --persist) are paired sample by sample. Recorded in the output attrs.")
+    ap.add_argument("--resume", action="store_true",
+                    help="skip scenes whose analysis already exists in --out with the same scene checksum (a stopped Colab run picks up "
+                         "where it left off; seeds stay paired because they depend on the scene index). With --persist the members of each "
+                         "analysis are also saved next to it (<scene>_members.pt) so the chain continues across the restart.")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
@@ -212,6 +233,9 @@ def main() -> None:
         cfg.guidance.persist_max_gap_h = args.persist_max_gap
     if args.persist_warm_t is not None:
         cfg.guidance.persist_warm_t = args.persist_warm_t
+    for name, v in (("--persist-ir-prev", args.persist_ir_prev), ("--persist-mw-now", args.persist_mw_now)):
+        if not (np.isfinite(v) and v > 0):
+            ap.error(f"{name} must be a positive finite factor; got {v}")
     if cfg.guidance.persist_warm_t and not (cfg.guidance.final_denoise_t < cfg.guidance.persist_warm_t < 1.0):
         ap.error(f"--persist-warm-t must lie in ({cfg.guidance.final_denoise_t}, 1); got {cfg.guidance.persist_warm_t}")
     if args.allsky_slope is not None:
@@ -266,9 +290,10 @@ def main() -> None:
     ds_obj = HurricaneSceneDataset(args.scenes, cfg.data, engine.norm, downscale=args.downscale)
     os.makedirs(args.out, exist_ok=True)
     prev_samples, prev_time, prev_key = None, None, None
+    sigma0_base, prev_had_mw = cfg.guidance.persist_sigma0, False
     if cfg.guidance.persist_sigma0 > 0:
-        log.info("time continuity on: sigma_p^2 = %.2f^2 + %.2f^2 dt_h, max gap %.0f h, warm start t = %.2f",
-                 cfg.guidance.persist_sigma0, cfg.guidance.persist_q, cfg.guidance.persist_max_gap_h, cfg.guidance.persist_warm_t)
+        log.info("time continuity on: sigma_p^2 = %.2f^2 + %.2f^2 dt_h, max gap %.0f h, warm start t = %.2f; sigma0 x %.1f after an IR-only analysis, x %.1f on a sounder scene",
+                 cfg.guidance.persist_sigma0, cfg.guidance.persist_q, cfg.guidance.persist_max_gap_h, cfg.guidance.persist_warm_t, args.persist_ir_prev, args.persist_mw_now)
     for i in range(len(ds_obj)):
         scene = xr.load_dataset(args.scenes[i])
         batch = collate([ds_obj[i]])
@@ -276,7 +301,7 @@ def main() -> None:
             batch["mw_mask"].zero_(), batch["mw"].zero_(), batch["mw_zen"].zero_()
         t_now, key_now = scene_time(args.scenes[i]), scene_key(args.scenes[i])
         x_prev, dt_h = None, 0.0
-        if cfg.guidance.persist_sigma0 > 0 and prev_samples is not None:
+        if sigma0_base > 0 and prev_samples is not None:
             if key_now != prev_key:
                 log.info("scene %s is a different storm or grid (%s vs %s): persistence chain reset", os.path.basename(args.scenes[i]), key_now, prev_key)
             else:
@@ -285,15 +310,44 @@ def main() -> None:
                     x_prev = prev_samples
                 else:
                     log.info("previous analysis %.1f h old: outside the persistence window, starting fresh", dt_h)
+        has_mw = bool(float(batch["mw_mask"].float().mean()) > 0.05)
+        path = os.path.join(args.out, os.path.basename(args.scenes[i]).replace(".nc", "_analysis.nc"))
+        members_path = path.replace("_analysis.nc", "_members.pt")
+        if args.resume and os.path.exists(path):
+            done_sha = xr.open_dataset(path).attrs.get("scene_sha256")
+            if done_sha == _sha256(args.scenes[i]):
+                # already analysed from this exact scene file: keep it, and let the chain continue from its saved members
+                prev_samples = torch.load(members_path, map_location="cpu") if os.path.exists(members_path) else None
+                prev_time, prev_key, prev_had_mw = t_now, key_now, has_mw
+                if sigma0_base > 0 and prev_samples is None:
+                    log.info("resume: %s exists but has no saved members; the persistence chain restarts at the next scene", os.path.basename(path))
+                else:
+                    log.info("resume: %s exists, skipped", os.path.basename(path))
+                continue
+            log.info("resume: %s exists but was made from a different scene file (checksum differs); redoing it", os.path.basename(path))
+        if x_prev is not None:
+            # observation-aware background error: the previous analysis counts less when it had no sounder, and the
+            # current scene leans on it less when it has one. Both factors 1 gives the plain persistence term.
+            f = (args.persist_ir_prev if not prev_had_mw else 1.0) * (args.persist_mw_now if has_mw else 1.0)
+            cfg.guidance.persist_sigma0 = sigma0_base * f
+            if f != 1.0:
+                log.info("background sigma0 %.2f (x %.1f: previous %s, current %s)", cfg.guidance.persist_sigma0, f,
+                         "sounder" if prev_had_mw else "IR only", "sounder" if has_mw else "IR only")
         if args.seed is not None:
             engine.seed = args.seed + 1000 * i
             torch.manual_seed(engine.seed)                                # the sampler derives member k from initial_seed + k
         out, obs = engine.analyse(batch, ensemble_size=args.ensemble, proxy_no_mw=args.proxy_no_mw, x_prev=x_prev, dt_prev_h=dt_h)
-        prev_samples, prev_time, prev_key = out.samples.detach(), t_now, key_now
+        prev_samples, prev_time, prev_key, prev_had_mw = out.samples.detach(), t_now, key_now, has_mw
         truth = batch["state"] if bool(torch.isfinite(batch["state"]).all()) else None     # live scenes carry NaN labels: no RMSE
         result = engine.to_dataset(out, obs, scene, truth=truth)
-        path = os.path.join(args.out, os.path.basename(args.scenes[i]).replace(".nc", "_analysis.nc"))
+        # provenance: which scene file (by content) and which observations this analysis was made from, so two runs can be
+        # checked for identical inputs (the Polo persistence runs of Sept/Oct 2026 silently used a stale scene zip on one day)
+        result.attrs.update({"scene_file": os.path.abspath(args.scenes[i]), "scene_sha256": _sha256(args.scenes[i]),
+                             "ir_coverage": float(batch["ir_mask"].float().mean()), "mw_coverage": float(batch["mw_mask"].float().mean()),
+                             "unet_ckpt": os.path.abspath(args.unet), "score_ckpt": os.path.abspath(args.score), "cli": " ".join(sys.argv[1:])})
         result.to_netcdf(path)
+        if args.resume and sigma0_base > 0:
+            torch.save(out.samples.detach().cpu(), members_path)        # lets --resume continue the chain after a stopped run
         log.info(f"wrote {path}  warm core (K by level): {np.round(result['warm_core_anomaly'].values, 1)}")
 
 

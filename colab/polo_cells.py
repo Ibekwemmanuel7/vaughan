@@ -235,6 +235,49 @@ print('wrote', f'{A}/polo_results/polo_structure.json', 'with', len(D), 'scenes'
     --rtm-audit $A/rtm_audit.json --audit-table archive_2023 --persist 0.3 --seed 7
 """
 
+# ---------- CELL P5b: observation-aware background ----------
+# The ERA5T benchmark (P7) showed plain persistence improving the warm-core series (RMSE 1.33 -> 0.89 K against ERA5)
+# but degrading the sounder scenes (inner-core RMSE 1.20 -> 1.47 K): the background on a sounder scene is always an
+# infrared-only analysis from 2 to 4 h earlier, weighted almost like the proxy. --persist-ir-prev 2 doubles sigma0 when
+# the previous analysis had no sounder; --persist-mw-now 2 doubles it when the current scene has one. So an IR scene
+# after a sounder scene keeps 0.3, IR after IR gets 0.6, a sounder scene after IR-only gets 1.2 (nearly free to follow
+# the sounder). Same seed as P5 so the three runs are paired. Needs the package zip rebuilt after 5 Oct 2026.
+"""
+%cd /content
+!python -m vaughan.inference.run_milton --scenes /content/data/polo/scenes/POLO_*.nc \
+    --stats $A/norm_stats.json --unet $A/checkpoints/unet.pt --score $A/checkpoints/score.pt \
+    --out $A/polo_analysis_persist2 --preset small --downscale 2 --ensemble 8 --steps 500 \
+    --rtm-audit $A/rtm_audit.json --audit-table archive_2023 --persist 0.3 --persist-ir-prev 2 --persist-mw-now 2 --seed 7 --resume
+"""
+# with --persist, --resume also saves each analysis's members (<scene>_members.pt, about 32 files) so the chain
+# continues across a restart; they can be deleted once P7 has run.
+
+# ---------- CELL P2b: the paired baseline on the labelled scene set ----------
+# The persistence runs of 28 Sept and 5 Oct used polo_scenes.zip, which still held the CONUS-cut versions of the seven
+# 24 September scenes (IR coverage 0.72 to 0.90), while the plain run had the full-disk rebuilds: the 24th was not a
+# paired comparison. From here every run uses /content/data/polo/scenes_era5 (the labelled rebuild, both grids) and
+# --seed 7, and every analysis file carries the sha256 of its scene so P7 can check that the inputs were identical.
+"""
+%cd /content
+!python -m vaughan.inference.run_milton --scenes /content/data/polo/scenes_era5/POLO_*.nc \
+    --stats $A/norm_stats.json --unet $A/checkpoints/unet.pt --score $A/checkpoints/score.pt \
+    --out $A/polo_analysis_plain_era5 --preset small --downscale 2 --ensemble 8 --steps 500 \
+    --rtm-audit $A/rtm_audit.json --audit-table archive_2023 --seed 7 --resume
+"""
+# --resume: if the session stops (compute units, idle timeout), run the same cell again; finished scenes are skipped by
+# checksum and the seeds stay paired. Roughly 5.5 min per scene on an A100, 32 scenes.
+
+# ---------- CELL P5c: the observation-aware background, paired with P2b ----------
+"""
+%cd /content
+!python -m vaughan.inference.run_milton --scenes /content/data/polo/scenes_era5/POLO_*.nc \
+    --stats $A/norm_stats.json --unet $A/checkpoints/unet.pt --score $A/checkpoints/score.pt \
+    --out $A/polo_analysis_persist2_era5 --preset small --downscale 2 --ensemble 8 --steps 500 \
+    --rtm-audit $A/rtm_audit.json --audit-table archive_2023 --persist 0.3 --persist-ir-prev 2 --persist-mw-now 2 --seed 7 --resume
+"""
+# with --persist, --resume also saves each analysis's members (<scene>_members.pt, about 32 files) so the chain
+# continues across a restart; they can be deleted once P7 has run.
+
 # ---------- CELL P6: plain against persistence, warm core through time ----------
 # The question is whether the 300 hPa warm core becomes a smoother function of time without losing its
 # agreement with the best-track intensity (rank correlation) or its fit to the sounder. Jumps between
@@ -319,7 +362,9 @@ def rm(a, b, sl=None):
     ok = np.isfinite(aa) & np.isfinite(bb)
     return float(np.sqrt(np.mean((aa[ok] - bb[ok]) ** 2))) if ok.mean() > 0.5 else np.nan
 rows = []
-for run in ('polo_analysis', 'polo_analysis_persist'):
+RUNS = {'polo_analysis': 'plain', 'polo_analysis_persist': 'persist', 'polo_analysis_persist2': 'persist2', 'polo_analysis_plain_era5': 'plain_era5', 'polo_analysis_persist2_era5': 'persist2_era5'}
+cal = json.load(open(f'{A}/polo_analysis/effective_calibration.json')); bias = {int(c): b for c, b, sg in zip(cal['mw_channels'], cal['mw_bias_K'], cal['mw_sigma_K']) if sg is not None}
+for run in RUNS:
     for f in sorted(glob.glob(f'{A}/{run}/POLO_*_analysis.nc')):
         sc_path = f'{SC}/' + os.path.basename(f).replace('_analysis', '')
         if not os.path.exists(sc_path): continue
@@ -329,28 +374,44 @@ for run in ('polo_analysis', 'polo_analysis_persist'):
         H = ds['temperature'].shape[-1]; c = H // 2; s = slice(c - CORE_HALF, c + CORE_HALF)
         T = np.stack([to_grid(sc['temp'].values[i], (H, H)) for i in range(len(lev))])
         ta, tu = ds['temperature'].values, ds['temperature_unet'].values
-        r = {'run': run.replace('polo_analysis', 'plain').replace('_persist', 'persist').replace('plain', 'plain', 1), 'time': np.datetime64(str(ds.attrs['time'])[:16]),
+        r = {'run': RUNS[run], 'time': np.datetime64(str(ds.attrs['time'])[:16]), 'scene_sha256': ds.attrs.get('scene_sha256', ''),
              'atms': float(sc['mw_mask'].mean()) > 0.05,
              'core_rmse_300_K': rm(ta[k], T[k], s), 'core_rmse_300_unet_K': rm(tu[k], T[k], s),
              'core_rmse_all_K': rm(ta, T, s), 'domain_rmse_all_K': rm(ta, T), 'domain_rmse_all_unet_K': rm(tu, T),
              'wc300_K': warm_core(ta[k]), 'wc300_unet_K': warm_core(tu[k]), 'wc300_era5_K': warm_core(T[k]),
              'spread_core_300_K': float(ds['temperature_spread'].values[k][s, s].mean())}
+        if r['atms']:   # bias-corrected sounder residual on the calibrated channels, the saved evidence for the observation-fit claim
+            wm = sc['mw_mask'].values.astype(float); h = ds['mw_tb_observed'].shape[-1]; f2 = wm.shape[0] // h
+            wmm = wm[: wm.shape[0] - wm.shape[0] % f2, : wm.shape[1] - wm.shape[1] % f2].reshape(h, f2, h, f2).mean((1, 3)) > 0.5
+            for ci, ch in enumerate(ds['mw_channel'].values):
+                if int(ch) in bias:
+                    e = (ds['mw_tb_simulated'].values[ci] - ds['mw_tb_observed'].values[ci] - bias[int(ch)])[wmm]; e = e[np.isfinite(e)]
+                    r[f'fit_atms{int(ch)}_K'] = float(np.sqrt(np.mean(e ** 2))) if e.size else np.nan
         if 'precip' in sc and np.isfinite(sc['precip'].values).all():
             pt = to_grid(sc['precip'].values, ds['precip'].shape)
             r['rain_rmse_imerg_mmh'] = rm(ds['precip'].values, pt); r['core_rain_mmh'] = float(np.nanmean(ds['precip'].values[s, s])); r['imerg_core_rain_mmh'] = float(np.nanmean(pt[s, s]))
         rows.append(r); ds.close(); sc.close()
 E = pd.DataFrame(rows).sort_values(['run', 'time'])
-E['run'] = E['run'].replace({'plainpersist': 'persist'})
+# input provenance: every run must have scored the same scene files
+sha = E.pivot(index='time', columns='run', values='scene_sha256')
+same = sha.apply(lambda row: len(set(v for v in row.dropna() if v)) <= 1, axis=1)
+print('scene files identical across runs at', int(same.sum()), 'of', len(same), 'times' + ('' if same.all() else ':  DIFFERENT at ' + ', '.join(str(t)[:16] for t in same[~same].index)))
 for run, g in E.groupby('run'):
+    fit = '  '.join(f'ch{c} {g[f"fit_atms{c}_K"].mean():.2f}' for c in (5, 6, 7, 8, 9) if f'fit_atms{c}_K' in g)
     print(f"{run:8s} n={len(g):2d}  inner-core 300 hPa RMSE vs ERA5: sounder scenes {g[g.atms].core_rmse_300_K.mean():.2f} K (U-Net {g[g.atms].core_rmse_300_unet_K.mean():.2f}), "
           f"all {g.core_rmse_300_K.mean():.2f} K (U-Net {g.core_rmse_300_unet_K.mean():.2f});  domain all levels {g.domain_rmse_all_K.mean():.2f} K (U-Net {g.domain_rmse_all_unet_K.mean():.2f});  "
-          f"warm core vs ERA5: bias {(g.wc300_K - g.wc300_era5_K).mean():+.2f} K, RMSE {np.sqrt(((g.wc300_K - g.wc300_era5_K) ** 2).mean()):.2f} K, rank corr {spearmanr(g.wc300_K, g.wc300_era5_K).correlation:.2f}")
-P = E[E.run == 'plain'].set_index('time'); Q = E[E.run == 'persist'].set_index('time')
-print(pd.DataFrame({'era5_wc': P.wc300_era5_K, 'plain_wc': P.wc300_K, 'persist_wc': Q.wc300_K, 'plain_core_rmse': P.core_rmse_300_K, 'persist_core_rmse': Q.core_rmse_300_K, 'atms': P.atms}).round(2).to_string())
+          f"warm core vs ERA5: bias {(g.wc300_K - g.wc300_era5_K).mean():+.2f} K, RMSE {np.sqrt(((g.wc300_K - g.wc300_era5_K) ** 2).mean()):.2f} K, rank corr {spearmanr(g.wc300_K, g.wc300_era5_K).correlation:.2f};  ATMS fit K: {fit}")
+have = set(E.run)
+P = E[E.run == ('plain_era5' if 'plain_era5' in have else 'plain')].set_index('time'); Q = E[E.run == 'persist'].set_index('time'); Q2 = E[E.run == ('persist2_era5' if 'persist2_era5' in have else 'persist2')].set_index('time')
+print('table and figure use', P.run.iloc[0], 'and', Q2.run.iloc[0] if len(Q2) else 'none')
+print(pd.DataFrame({'era5_wc': P.wc300_era5_K, 'plain_wc': P.wc300_K, 'persist_wc': Q.wc300_K, 'persist2_wc': Q2.wc300_K, 'plain_core_rmse': P.core_rmse_300_K, 'persist_core_rmse': Q.core_rmse_300_K, 'persist2_core_rmse': Q2.core_rmse_300_K, 'atms': P.atms}).round(2).to_string())
 fig, ax = plt.subplots(2, 1, figsize=(9, 6.5), sharex=True)
 ax[0].plot(P.index, P.wc300_era5_K, 'k-', lw=2, label='ERA5T'); ax[0].plot(P.index, P.wc300_K, 'o-', color='0.6', label='analysis, each scene alone')
-ax[0].plot(Q.index, Q.wc300_K, 'o-', color='C3', label='analysis, persistence background'); ax[0].set_ylabel('300 hPa warm core (K)'); ax[0].legend(fontsize=8)
+ax[0].plot(Q.index, Q.wc300_K, 'o-', color='C3', label='analysis, persistence background')
+if len(Q2): ax[0].plot(Q2.index, Q2.wc300_K, 'o-', color='C2', label='analysis, observation-aware background')
+ax[0].set_ylabel('300 hPa warm core (K)'); ax[0].legend(fontsize=8)
 ax[1].plot(P.index, P.core_rmse_300_K, 'o-', color='0.6', label='plain'); ax[1].plot(Q.index, Q.core_rmse_300_K, 'o-', color='C3', label='persistence')
+if len(Q2): ax[1].plot(Q2.index, Q2.core_rmse_300_K, 'o-', color='C2', label='observation-aware')
 ax[1].plot(P.index, P.core_rmse_300_unet_K, 's:', color='C0', label='U-Net'); ax[1].set_ylabel('inner-core RMSE vs ERA5 (K)'); ax[1].legend(fontsize=8)
 for t in P.index[P.atms]: ax[1].axvline(t, color='0.85', lw=0.8, zorder=0)
 ax[0].set_title('Hurricane Polo against ERA5T'); fig.autofmt_xdate(); fig.tight_layout(); fig.savefig(f'{A}/polo_results/polo_era5.png', dpi=150)

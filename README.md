@@ -59,7 +59,7 @@ Run everything from the repository root, for example `python -m vaughan.scripts.
 | `train/` | `train_unet.py` (MSE + RTM consistency), `train_score.py` (DSM with EMA; optional RTM residual fit), `common.py` |
 | `inference/run_milton.py` | `RetrievalEngine` and the CLI that writes CF NetCDF analyses with ensemble mean, spread, simulated vs observed TB, thickness and warm-core anomaly |
 | `scripts/` | `prepare_archive`, `prepare_milton`, `train`, `eval_unet`, `add_cloud_ice` command-line entry points |
-| `tests/` | end-to-end CPU tests (`test_smoke.py`, `test_cloud_ice.py`, `test_download_selection.py`, `test_live_storm.py`, `test_persistence.py`), 34 in all |
+| `tests/` | end-to-end CPU tests (`test_smoke.py`, `test_cloud_ice.py`, `test_download_selection.py`, `test_live_storm.py`, `test_persistence.py`), 35 in all |
 
 ## Tensor conventions
 
@@ -114,7 +114,9 @@ than `--persist-max-gap` hours (12) is not used. `--persist-warm-t 0.5` addition
 from the previous analysis diffused to `t = 0.5` instead of from noise (SDEdit). The analysis files record
 `persist_dt_h` and `persist_sigma`. `--seed N` makes the sampling reproducible (scene i, member k draws from N + 1000 i + k),
 so two runs that differ in one flag are paired sample by sample; the chain resets when the storm name or grid changes and
-refuses scenes without a time. Cells P5 and P6 of `colab/polo_cells.py` rerun Polo this way and compare
+refuses scenes without a time. `--resume` skips scenes whose analysis already exists in `--out` with the same scene
+checksum, so a stopped Colab session is rerun with the same command and picks up where it left off, seeds still paired
+(with `--persist` the members are saved next to each analysis so the chain continues). Cells P5 and P6 of `colab/polo_cells.py` rerun Polo this way and compare
 the warm-core series with the plain run. On Polo (31 scenes) the background raised the rank correlation of the
 300 hPa warm core with the best-track intensity from 0.79 to 0.87 and halved the mean change between consecutive
 scenes (gaps of 2, 4 and 6 h; 0.81 to 0.39 K) while the bias-corrected sounder fit stayed within 0.05 K per channel; the peak warm core fell from
