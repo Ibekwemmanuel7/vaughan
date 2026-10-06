@@ -164,7 +164,7 @@
 <section id="compare">
   <div class="eyebrow">Direct versus generative</div>
   <h2>What the generative step adds, measured three ways</h2>
-  <p>Three retrievals of the same 16 scenes, all 8 members and 500 steps. <strong>Analysis</strong>: the full system, a microwave-aware U-Net proxy plus the calibrated physics term. <strong>Direct proxy</strong>: the U-Net alone, the approach Tomorrow.io adopted for ICGen. <strong>Physics-only microwave</strong>: the proxy is shown only the infrared and the ATMS radiances reach the state through the calibrated likelihood alone.</p>
+  <p>Three retrievals of the same 16 scenes, all 8 members and 500 steps. <strong>Analysis</strong>: the full system, a microwave-aware U-Net proxy plus the calibrated physics term. <strong>Direct proxy</strong>: the U-Net alone, a direct retrieval with no prior and no physics term. <strong>Physics-only microwave</strong>: the proxy is shown only the infrared and the ATMS radiances reach the state through the calibrated likelihood alone.</p>
   <div class="tiles" id="cmp_tiles"></div>
   <div class="callout"><p id="cmp_text"></p></div>
   <p>Two readings follow. First, the physics term works: starting from an infrared-only proxy it drives the bias-corrected sounding-channel misfit to the same 1.5 to 2.8 K floor the full system reaches, so the observations do enter the state through the likelihood. Second, it recovers a weaker warm core than the microwave-aware proxy, because ATMS at 16 x 16 on this grid cannot resolve a 30 km eye and many inner-core structures fit the radiances equally well; the proxy learned the correlation between the coarse sounder pattern and the sharp core from 805 storms. Averaged over the ATMS scenes the physics-only amplitude (2.6 K) is actually nearer ERA5's 2.8 K than the full system's 3.4 K, but ERA5 at 0.25 degrees smooths the eye, so amplitude against ERA5 is not a decisive test; the inner-core RMSE, where the full system is 0.8 K better, is. The physics guarantees consistency with the observations, the learned proxy supplies the resolution the observations lack. With the proxy in distribution the ensemble spread collapses to about 0.1 K; it would open only where the proxy is uncertain.</p>
@@ -258,31 +258,16 @@
   <div class="panelgrid prior" id="priorgrid"></div>
 </section>
 
-<section id="context">
-  <div class="eyebrow">Context</div>
-  <h2>Where this sits next to Tomorrow.io's own work</h2>
-  <div class="two">
-    <div>
-      <h3>Cannon et al. (2024), multi-satellite precipitation retrievals</h3>
-      <p>An EfficientNetV2 encoder-decoder with 2+1D temporal convolutions ingests an hour of raw geostationary imagery plus whatever sounder overpasses fell in the window, each instrument channel as its own sparse input plane, and retrieves rain with a 32-quantile loss against ground radar. For Milton after landfall on 10 October, adding a TMS overpass raised the Heidke skill score from 0.64 to 0.71 at 0.25 mm/h and from 0.25 to 0.37 at 6 mm/h. This page looks at the same overpasses from the other side: the temperature column above the rain.</p>
-    </div>
-    <div>
-      <h3>Guerrette et al. (2026), all-sky assimilation of the sounder constellation</h3>
-      <p>In FV3-JEDI with variational bias correction and a symmetric cloud-impact error model, the constellation matches ATMS for water vapour impact and reaches about half of ATMS for tropospheric temperature. TMS sounds temperature at 118 GHz rather than 50 to 60 GHz, where ice scattering in a hurricane core is far stronger; the channels found trustworthy here through an analytic operator are the ones that instrument does not carry. That gap is what the ice-scattering-aware operator in the recommendations is for.</p>
-    </div>
-  </div>
-</section>
-
 <section id="recs">
-  <div class="eyebrow">For a sounder constellation</div>
-  <h2>What this would change in an ICGen-style system</h2>
-  <p class="note">Based on Tomorrow.io's published ICGen post and the NOAA EPIC evaluation of the TMS sounder in FV3-JEDI. Proposals, not claims about internals.</p>
+  <div class="eyebrow">Recommendations</div>
+  <h2>What this suggests for a score-based assimilation system</h2>
+  <p class="note">Design lessons from building and scoring this system, stated as proposals for anyone assimilating a microwave sounder constellation with a generative prior.</p>
   <ol class="plain">
-    <li><strong>Keep diffusion in physical space.</strong> The reported 50 percent degradation came from VAE reconstruction artifacts, not from the diffusion model. Pixel-space priors on storm-centred or regional patches avoid the artifact; if compression is needed, train the decoder with a radiance-consistency loss so what the operator sees survives the bottleneck.</li>
-    <li><strong>Schedule the guidance.</strong> Likelihood gradients before the Tweedie estimate is meaningful destabilise the chain; inflate observation errors by the Tweedie variance and gate guidance early. This is a plausible contributor to any score-based DA that "nudged humidity" but did not scale.</li>
+    <li><strong>Keep diffusion in physical space.</strong> A latent-space prior puts a VAE between the operator and the state, and reconstruction artifacts in the decoder are then scored as if they were analysis error. Pixel-space priors on storm-centred or regional patches avoid the artifact; if compression is needed, train the decoder with a radiance-consistency loss so what the operator sees survives the bottleneck.</li>
+    <li><strong>Schedule the guidance.</strong> Likelihood gradients before the Tweedie estimate is meaningful destabilise the chain; inflate observation errors by the Tweedie variance and gate guidance early. Without this the chain reads a guidance signal before the state has any structure to apply it to.</li>
     <li><strong>Use direct injection as the proxy inside the Bayesian framework, not instead of it.</strong> The injection model is the U-Net here; the prior and physics act as a corrector and the chains give flow-dependent spread, the quantity a 30-member 3DEnVar background otherwise has to supply.</li>
     <li><strong>Audit the operator per channel before it enters a likelihood.</strong> The bias and scatter table above is the template; NOAA's symmetric-cloud-impact error model is its operational form.</li>
-    <li><strong>An ice-scattering-aware fast operator for 118 and 183 GHz.</strong> TMS sounds temperature at 118 GHz, where hydrometeor scattering in a hurricane core is far stronger than at the 50 to 60 GHz ATMS channels that proved robust here. Emulate a scattering reference (line-by-line plus multiple scattering, with ice habit and size) as a differentiable network with hydrometeors in the state.</li>
+    <li><strong>An ice-scattering-aware fast operator for 118 and 183 GHz.</strong> The small-satellite sounders now flying (TROPICS and its commercial successors) sound temperature at 118 GHz, where hydrometeor scattering in a hurricane core is far stronger than at the 50 to 60 GHz ATMS channels that proved robust here. Emulate a scattering reference (line-by-line plus multiple scattering, with ice habit and size) as a differentiable network with hydrometeors in the state.</li>
     <li><strong>Verify the inner core against dropsondes, not reanalysis.</strong> ERA5 puts Milton's peak warm core at 4.4 K; reconnaissance measured well over 10 K.</li>
   </ol>
 </section>
@@ -303,7 +288,7 @@
 </section>
 </main>
 <footer>
-  Data: GOES-16 ABI L2 CMIP (NOAA), NOAA-20 ATMS SDR (NOAA CLASS), ERA5 (Copernicus CDS), IMERG (NASA GES DISC), IBTrACS best track. Training archive: 1,057 storm-centred scenes, Atlantic and East Pacific 2017 to 2023. References: Cannon et al. 2024, Deep Learning for Multi-Satellite Precipitation Retrievals (ESS Open Archive, 10.22541/essoar.173430371.11882843); Guerrette et al. 2026, All-sky assimilation impacts of the Tomorrow.io microwave sounder constellation (QJRMS, 10.1002/qj.70106); Song et al. 2023, pseudo-inverse guided diffusion; Chung et al. 2023, diffusion posterior sampling. Code: <span class="mono">vaughan</span>, PyTorch. Built with AI-assisted development; the physics decisions are the author's.
+  Data: GOES-16 ABI L2 CMIP (NOAA), NOAA-20 ATMS SDR (NOAA CLASS), ERA5 (Copernicus CDS), IMERG (NASA GES DISC), IBTrACS best track. Training archive: 1,057 storm-centred scenes, Atlantic and East Pacific 2017 to 2023. References: Song et al. 2023, pseudo-inverse guided diffusion; Chung et al. 2023, diffusion posterior sampling. Code: <span class="mono">vaughan</span>, PyTorch. Built with AI-assisted development; the physics decisions are the author's.
 </footer>
 </div>
 <noscript><p class="status">This page draws its figures with JavaScript; the text and tables above are complete without it, the scene explorer is not.</p></noscript>

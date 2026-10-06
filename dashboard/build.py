@@ -77,7 +77,7 @@ def main():
             for p in glob.glob(os.path.join(OUT, pat)):
                 os.remove(p)
 
-    D = json.load(open(DASH))
+    D = json.load(open(DASH, encoding='utf-8'))
     S = D['runs']['milton_v3']
     PH = D['side']['physics_only']
 
@@ -99,7 +99,7 @@ def main():
     open(os.path.join(OUT, 'data', fields_name), 'wb').write(fb)
 
     # ---- imagery -> webp ----
-    im = json.load(open(IMAGERY))
+    im = json.load(open(IMAGERY, encoding='utf-8'))
     frames = []
     for i, f in enumerate(im['frames']):
         entry = {'time': f['time']}
@@ -181,20 +181,20 @@ def main():
         shutil.copy(os.path.join(SRC, fn), os.path.join(OUT, fn))
 
     # ---- shell ----
-    html = open(os.path.join(SRC, 'index.html')).read()
-    html = html.replace('<!--SECTIONS-->', open(os.path.join(SRC, 'sections.html')).read().strip())
-    html = html.replace('<!--FOOTER-->', open(os.path.join(SRC, 'footer.html')).read().strip())
+    html = open(os.path.join(SRC, 'index.html'), encoding='utf-8').read()
+    html = html.replace('<!--SECTIONS-->', open(os.path.join(SRC, 'sections.html'), encoding='utf-8').read().strip())
+    html = html.replace('<!--FOOTER-->', open(os.path.join(SRC, 'footer.html'), encoding='utf-8').read().strip())
     html = html.replace('href="styles.css"', f'href="{css_name}"')
     html = html.replace('src="js/app.js"', f'src="js/app.js?v={app_hash}"').replace('href="js/app.js"', f'href="js/app.js?v={app_hash}"')
     assert '<!--' not in html.replace('<!--SECTIONS-->', ''), 'unfilled placeholder'
-    open(os.path.join(OUT, 'index.html'), 'w').write(html)
+    open(os.path.join(OUT, 'index.html'), 'w', encoding='utf-8', newline='\n').write(html)
 
     # ---- service worker ----
     shell = ['./', 'index.html', css_name, 'favicon.svg', 'data/manifest.json', f'data/{fields_name}'] + [f'js/{n}' for n in hashed.values()]
     shell += [fr['gulf'] for fr in frames] + [fr['core'] for fr in frames] + [f'img/{n}.webp' for n in FIGS]
     version = h8(b''.join(open(os.path.join(OUT, p), 'rb').read() for p in ['index.html', css_name, 'data/manifest.json'] + [f'js/{n}' for n in hashed.values()]))
-    sw = open(os.path.join(SRC, 'sw.js')).read().replace('__VERSION__', version).replace('__SHELL__', json.dumps(shell))
-    open(os.path.join(OUT, 'sw.js'), 'w').write(sw)
+    sw = open(os.path.join(SRC, 'sw.js'), encoding='utf-8').read().replace('__VERSION__', version).replace('__SHELL__', json.dumps(shell))
+    open(os.path.join(OUT, 'sw.js'), 'w', encoding='utf-8', newline='\n').write(sw)
 
     # ---- report ----
     total = 0
