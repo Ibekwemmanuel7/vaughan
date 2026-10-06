@@ -121,6 +121,13 @@ the warm-core series with the plain run. On Polo (31 scenes) the background rais
 300 hPa warm core with the best-track intensity from 0.79 to 0.87 and halved the mean change between consecutive
 scenes (gaps of 2, 4 and 6 h; 0.81 to 0.39 K) while the bias-corrected sounder fit stayed within 0.05 K per channel; the peak warm core fell from
 5.7 to 4.9 K and the ensemble spread from 0.07 to 0.05 K, the members being conditioned on each other's past.
+Scored against ERA5T once it covered the period (cell P7; 32 rebuilt scenes), the plain live analyses have an inner-core
+300 hPa RMSE of 1.20 K on the sounder scenes, 1.26 K over all scenes and 1.38 K over the whole domain and all levels,
+with the direct U-Net within 0.05 K. The persistence background smooths the warm-core series (RMSE against the ERA5
+series 1.31 to 0.89 K) but raises the sounder-scene inner-core error to 1.47 K, and a causal exponential smoother with a
+6 h time constant on the plain series reproduces its numbers; it is a smoother, not a better analysis, and stays off by
+default. `--persist-ir-prev` and `--persist-mw-now` scale the background error after an infrared-only analysis and on a
+sounder scene; the paired comparison on the rebuilt scenes (cells P2b, P5c) is in progress.
 
 ## Training and inference
 
