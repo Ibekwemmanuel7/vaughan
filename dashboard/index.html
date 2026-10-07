@@ -20,8 +20,8 @@
 <link rel="apple-touch-icon" href="img/icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preload" href="data/manifest.json" as="fetch" crossorigin>
-<link rel="modulepreload" href="js/app.js?v=4cc864ea">
-<link rel="stylesheet" href="styles.ea8831cb.css">
+<link rel="modulepreload" href="js/app.js?v=5eae77d3">
+<link rel="stylesheet" href="styles.8cf188b9.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -76,20 +76,37 @@
 </section>
 
 <section id="explorer" class="view">
-  <div class="viewhead"><div class="eyebrow">Explorer</div><h2>One analysis time at a glance</h2></div>
-  <p>Hurricane Milton, 16 analysis times from 06 to 10 October 2024. Pick a time: filled dots mark scenes with an ATMS overpass inside the window; without one the retrieval is carried by the infrared through the learned proxy and the prior alone. Every panel pairs the analysis with its reference (ERA5 for temperature, IMERG for rain, the observed radiances for the sounder). Melissa and Polo are summarised as static figures under Results until their fields are exported.</p>
+  <div class="viewhead"><div class="eyebrow">Explorer</div><h2>One analysis time, one field, against its reference</h2></div>
+  <p>Hurricane Milton, 16 analysis times from 06 to 10 October 2024. Choose a time, a variable and, for temperature, a pressure level; the left map is always the analysis and the right map its reference, on one colour scale, with the difference on its own scale a click away. Filled dots mark the times with an ATMS overpass inside the window; without one the retrieval is carried by the infrared through the learned proxy and the prior alone. Melissa and Polo are summarised as static figures under Results until their fields are exported.</p>
   <p class="status" id="status" role="status" hidden></p>
-  <div class="strip" id="strip" role="group" aria-label="analysis time; use the arrow keys to move between times"></div>
-  <div class="scenestats" id="scenestats" aria-live="polite"></div>
-  <div class="panelgrid">
-    <div class="panel"><div class="t"><span>GOES-16 band 13 · observed</span><span id="irrange"></span></div><img class="coreimg" id="coreimg" width="384" height="384" decoding="async" alt="storm-centred GOES-16 band 13 image"><div class="cap">Storm-centred 512 km box at 2 km, enhanced infrared, the same field the U-Net sees.</div></div>
-    <div class="panel"><div class="t"><span>ATMS channel 7 · 54.4 GHz</span><span>bias-corrected</span></div><div class="pair"><figure><canvas class="field" id="c_mwo"></canvas><figcaption>observed</figcaption></figure><figure><canvas class="field" id="c_mws"></canvas><figcaption>simulated from analysis</figcaption></figure></div></div>
-    <div class="panel"><div class="t"><span>Temperature anomaly · 300 hPa</span><span>K from domain mean</span></div><div class="pair"><figure><canvas class="field" id="c_t3a"></canvas><figcaption>analysis</figcaption></figure><figure><canvas class="field" id="c_t3e"></canvas><figcaption>ERA5</figcaption></figure></div></div>
-    <div class="panel"><div class="t"><span>Temperature anomaly · 850 hPa</span><span>K from domain mean</span></div><div class="pair"><figure><canvas class="field" id="c_t8a"></canvas><figcaption>analysis</figcaption></figure><figure><canvas class="field" id="c_t8e"></canvas><figcaption>ERA5</figcaption></figure></div></div>
-    <div class="panel"><div class="t"><span>Rain rate</span><span>mm h⁻¹, 0 to 30</span></div><div class="pair"><figure><canvas class="field" id="c_pa"></canvas><figcaption>analysis</figcaption></figure><figure><canvas class="field" id="c_pe"></canvas><figcaption>IMERG</figcaption></figure></div></div>
-    <div class="panel"><div class="t"><span>Ensemble spread · 300 hPa</span><span>K, 8 members</span></div><div class="pair"><figure><canvas class="field" id="c_sp"></canvas><figcaption>standard deviation across members</figcaption></figure><figure><canvas class="field" id="c_t3p"></canvas><figcaption>physics-only run, 300 hPa anomaly</figcaption></figure></div></div>
-    <div class="panel"><div class="t"><span>East to west cross section through the centre</span><span>200 to 1000 hPa</span></div><div class="pair"><figure><canvas class="field wide" id="c_xa"></canvas><figcaption>analysis, anomaly from level mean</figcaption></figure><figure><canvas class="field wide" id="c_xe"></canvas><figcaption>ERA5</figcaption></figure></div></div>
+  <div class="toolbar" role="group" aria-label="explorer controls">
+    <label class="ctlgroup"><span class="lab">Storm</span><select id="stormsel" class="sel"><option value="milton">Milton, October 2024</option></select></label>
+    <div class="ctlgroup"><span class="lab">Time (UTC)</span><div class="stepper"><button type="button" class="btn" id="prevbtn" aria-label="previous analysis time">&larr;</button><output id="timelab" class="mono"></output><button type="button" class="btn" id="nextbtn" aria-label="next analysis time">&rarr;</button></div></div>
+    <div class="ctlgroup grow"><span class="lab">Variable</span><div class="tabs" role="tablist" id="vartabs">
+      <button type="button" role="tab" class="tab" data-var="temp" aria-selected="true">Temperature</button>
+      <button type="button" role="tab" class="tab" data-var="rain" aria-selected="false">Rain</button>
+      <button type="button" role="tab" class="tab" data-var="obs" aria-selected="false">Observations</button>
+      <button type="button" role="tab" class="tab" data-var="spread" aria-selected="false">Spread</button>
+      <button type="button" role="tab" class="tab" data-var="xsec" aria-selected="false">Cross-section</button>
+    </div></div>
+    <span class="brk" aria-hidden="true"></span>
+    <label class="ctlgroup" id="levelgroup"><span class="lab">Level</span><select id="levelsel" class="sel"><option value="300">300 hPa</option><option value="850">850 hPa</option></select></label>
+    <label class="ctlgroup" id="refgroup"><span class="lab">Reference</span><select id="refsel" class="sel"><option value="era5">ERA5</option><option value="unet">direct U-Net</option><option value="phys">physics-only</option></select></label>
+    <label class="ctlgroup check"><input type="checkbox" id="diffchk"> <span class="lab">Difference</span></label>
   </div>
+  <div class="strip" id="strip" role="group" aria-label="analysis time; use the arrow keys to move between times"></div>
+  <div class="phoneswitch" role="group" aria-label="which map to show on narrow screens"><button type="button" class="chip" data-show="ana" aria-pressed="true">Analysis</button><button type="button" class="chip" data-show="ref" aria-pressed="false">Reference</button></div>
+  <div class="maps" id="maps" data-show="ana" data-var="temp">
+    <figure class="map obs" id="map_ir"><figcaption class="t"><span>GOES-16 band 13 · observed</span><span id="irrange"></span></figcaption><img class="coreimg" id="coreimg" width="384" height="384" decoding="async" alt="storm-centred GOES-16 band 13 image"></figure>
+    <figure class="map ana"><figcaption class="t"><span id="lab_ana">Analysis</span><span id="sub_ana"></span></figcaption><canvas class="field" id="c_ana"></canvas></figure>
+    <figure class="map ref"><figcaption class="t"><span id="lab_ref">ERA5</span><span id="sub_ref"></span></figcaption><canvas class="field" id="c_ref"></canvas></figure>
+  </div>
+  <div class="scalebar"><span id="scale_lo" class="mono"></span><i id="scale_grad"></i><span id="scale_hi" class="mono"></span><span id="scale_units" class="lab"></span><span class="lab dim" id="scale_note">storm-centred box, about 560 km across; north up</span></div>
+  <div class="scenestats" id="scenestats" aria-live="polite"></div>
+  <p class="finding" id="finding"></p>
+  <details class="more"><summary>Definitions and limitations for these panels</summary>
+    <p class="note">Temperature maps are anomalies from the domain mean at the chosen level, on a fixed scale of minus 4 to plus 4 K so that times can be compared; ERA5 is the 0.25 degree reanalysis regridded to the 4.4 km analysis grid, which smooths the eye. Rain is the ensemble-mean rate against IMERG Final Run, 0 to 30 mm per hour. Observations show ATMS channel 7 (54.4 GHz) as observed and as simulated from the analysis by the calibrated operator after the archive bias of 18.3 K is removed; grey means no overpass in the 90 minute window. Spread is the standard deviation across the 8 members at 300 hPa, 0 to 0.3 K (it is about 0.1 K almost everywhere, the underdispersion stated under Limitations); the companion map is the analysis minus the direct U-Net at 300 hPa, which is what the prior and the physics term changed. The cross-section runs east to west through the best-track centre, 200 to 1000 hPa, anomaly from each level's mean. Differences are analysis minus reference on their own scale. Inner-core RMSE: central 16 x 16 pixels (about 70 km) at 300 hPa. Fields are stored at 64 x 64 (8.8 km) for the page; the analyses themselves are 128 x 128.</p>
+  </details>
   <div class="chart relwrap"><div class="eyebrow charttitle">Warm-core profile for this time · core minus environment, K</div>
     <div class="legend"><span class="key s-ana">analysis (ensemble mean)</span><span class="key s-unet">direct U-Net proxy</span><span class="key s-phys">physics-only microwave</span><span class="key s-era dash">ERA5</span></div>
     <svg id="profile" viewBox="0 0 560 300" role="img"></svg><div class="tip" id="tip1"></div></div>
@@ -328,6 +345,6 @@
 </footer>
 </div>
 <noscript><p class="status">This page draws its figures with JavaScript; the text and tables above are complete without it, the scene explorer is not.</p></noscript>
-<script type="module" src="js/app.js?v=4cc864ea"></script>
+<script type="module" src="js/app.js?v=5eae77d3"></script>
 </body>
 </html>

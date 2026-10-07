@@ -9,6 +9,7 @@
  */
 import { anomaly, getJSON, loadFields, rangeAbove, rowAnomaly, shifted } from './data.fdb4ce73.js';
 import { mountFields } from './fields.42332423.js';
+import { DIVERGING, GREY, SEQUENTIAL, gradient } from './colormap.4c095e89.js';
 import { drawProfile, drawSeries } from './charts.1e0f3424.js';
 import { fmt, h, table, tile } from './dom.5283f545.js';
 
@@ -31,6 +32,7 @@ async function main() {
   const views = mountFields(document);
   let cur = M.imagery.default_index;
   let fields = null;                                  // set once the buffer arrives
+  const X = { v: 'temp', level: 300, ref: 'era5', diff: false };    // variable, level, reference, difference
 
   const hero = { img: $('heroimg'), lab: $('herolab'), slider: $('heroslider'), idx: $('heroidx'), btn: $('playbtn') };
   const strip = $('strip');
@@ -44,6 +46,33 @@ async function main() {
     select(k === -Infinity ? 0 : k === Infinity ? S.length - 1 : (cur + k + S.length) % S.length);
     chips[cur].focus();
   });
+  $('prevbtn').addEventListener('click', () => { setPlaying(false); select((cur - 1 + S.length) % S.length); });
+  $('nextbtn').addEventListener('click', () => { setPlaying(false); select((cur + 1) % S.length); });
+  // variable tabs, level, reference, difference, phone switch
+  const tabs = [...document.querySelectorAll('#vartabs .tab')];
+  tabs.forEach(t => t.addEventListener('click', () => { X.v = t.dataset.var; tabs.forEach(u => u.setAttribute('aria-selected', String(u === t))); syncControls(); renderScene(cur); }));
+  $('vartabs').addEventListener('keydown', e => {
+    const k = { ArrowRight: 1, ArrowLeft: -1 }[e.key]; if (k === undefined) return;
+    const i = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true'); const n = tabs[(i + k + tabs.length) % tabs.length]; n.click(); n.focus(); e.preventDefault();
+  });
+  $('levelsel').addEventListener('change', e => { X.level = +e.target.value; syncControls(); renderScene(cur); });
+  $('refsel').addEventListener('change', e => { X.ref = e.target.value; renderScene(cur); });
+  $('diffchk').addEventListener('change', e => { X.diff = e.target.checked; renderScene(cur); });
+  document.querySelectorAll('.phoneswitch .chip').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.phoneswitch .chip').forEach(c => c.setAttribute('aria-pressed', String(c === b)));
+    $('maps').dataset.show = b.dataset.show;
+  }));
+  function syncControls() {
+    const temp = X.v === 'temp';
+    $('levelgroup').hidden = !temp;
+    $('refgroup').hidden = !temp;
+    // physics-only and U-Net fields exist at 300 hPa only
+    const phys = $('refsel').querySelector('[value=phys]'), un = $('refsel').querySelector('[value=unet]');
+    phys.disabled = un.disabled = X.level !== 300;
+    if (X.level !== 300 && X.ref !== 'era5') { X.ref = 'era5'; $('refsel').value = 'era5'; }
+    $('diffchk').parentElement.hidden = !(X.v === 'temp' || X.v === 'rain');
+    $('maps').dataset.var = X.v;
+  }
 
   function showHero(i) {
     const f = M.imagery.frames[i];
@@ -53,6 +82,7 @@ async function main() {
     hero.slider.value = i;
     hero.idx.textContent = `${i + 1} / ${S.length}`;
     $('coreimg').src = f.core;
+    $('timelab').textContent = fmtT(f.time);
   }
 
   function select(i) {
@@ -62,41 +92,93 @@ async function main() {
     renderScene(i);
   }
 
+  /** a minus b, same shape */
+  const minus = (a, b) => { const data = new Float32Array(a.data.length); for (let k = 0; k < data.length; k++) data[k] = a.data[k] - b.data[k]; return { data, h: a.h, w: a.w }; };
+  const REFNAME = { era5: 'ERA5', unet: 'direct U-Net', phys: 'physics-only run' };
+  function setScale(kind, lo, hi, units, note) {
+    $('scale_grad').style.background = gradient(kind === 'div' ? DIVERGING : kind === 'seq' ? SEQUENTIAL : GREY);
+    $('scale_lo').textContent = lo; $('scale_hi').textContent = hi; $('scale_units').textContent = units;
+    if (note !== undefined) $('scale_note').textContent = note;
+  }
+  const wide = on => { for (const id of ['c_ana', 'c_ref']) views.get(id).canvas.classList.toggle('wide', on); };
+
   function renderScene(i) {
     const s = S[i];
+    const t = fmtT(s.time);
+    const e5 = s.warm_core_era5_K ? s.warm_core_era5_K[i300] : null;
     const st = [
-      [fmtT(s.time), 'analysis time (UTC)'],
-      [covered(s) ? `${Math.round(s.mw_coverage * 100)}%` : 'none', 'ATMS coverage of the domain'],
-      [isNum(s.inner_core_rmse_K.analysis) ? `${fmt(s.inner_core_rmse_K.analysis)} K` : 'no label', `inner-core RMSE at 300 hPa (physics-only ${fmt(s.inner_core_rmse_K.physics_only)} K)`],
-      [isNum(s.domain_rmse_K.analysis) ? `${fmt(s.domain_rmse_K.analysis)} K` : 'no label', 'domain RMSE vs ERA5'],
-      [isNum(s.precip_rmse_vs_imerg) ? `${fmt(s.precip_rmse_vs_imerg, 1)} mm/h` : 'no label', 'rain RMSE vs IMERG'],
-      [`${fmt(s.warm_core_K[i300], 1)} K`, `warm core at 300 hPa (ERA5 ${s.warm_core_era5_K ? fmt(s.warm_core_era5_K[i300], 1) : 'n/a'} K)`],
+      [isNum(s.inner_core_rmse_K.analysis) ? `${fmt(s.inner_core_rmse_K.analysis)} K` : 'no label', `inner-core RMSE at 300 hPa against ERA5, central 70 km (direct U-Net ${fmt(s.inner_core_rmse_K.unet)} K)`],
+      [covered(s) ? `${Math.round(s.mw_coverage * 100)}%` : 'none', covered(s) ? 'of the domain seen by ATMS in the 90 minute window' : 'ATMS overpass in the window: infrared and prior only'],
+      [`${fmt(s.warm_core_K[i300], 1)} K`, `warm core at 300 hPa, analysis; ERA5 ${e5 == null ? 'n/a' : fmt(e5, 1) + ' K'}; member spread ${fmt(s.spread_core_300_K)} K`],
     ];
     $('scenestats').replaceChildren(...st.map(([n, l]) => h('div', { class: 'stat' }, h('div', { class: 'n' }, n), h('div', { class: 'l' }, l))));
+    const d = isNum(s.inner_core_rmse_K.analysis) && isNum(s.inner_core_rmse_K.unet) ? s.inner_core_rmse_K.analysis - s.inner_core_rmse_K.unet : null;
+    $('finding').textContent = covered(s)
+      ? `At ${t} the sounder saw ${Math.round(s.mw_coverage * 100)} percent of the domain. The analysis puts the 300 hPa warm core at ${fmt(s.warm_core_K[i300], 1)} K against ERA5's ${e5 == null ? 'unlabelled value' : fmt(e5, 1) + ' K'}${isNum(s.inner_core_rmse_K.analysis) ? `, with an inner-core error of ${fmt(s.inner_core_rmse_K.analysis)} K` : ''}${d == null ? '' : d < -0.02 ? `, ${fmt(-d)} K better than the direct U-Net` : d > 0.02 ? `, ${fmt(d)} K worse than the direct U-Net` : ', the same as the direct U-Net to 0.02 K'}.`
+      : `At ${t} there was no ATMS overpass, so the analysis is the infrared through the learned proxy plus the prior. It puts the 300 hPa warm core at ${fmt(s.warm_core_K[i300], 1)} K against ERA5's ${e5 == null ? 'unlabelled value' : fmt(e5, 1) + ' K'}${isNum(s.inner_core_rmse_K.analysis) ? `, inner-core error ${fmt(s.inner_core_rmse_K.analysis)} K` : ''}; the full system and the direct U-Net coincide here, as they must.`;
     drawProfile($('profile'), LEV, { era5: s.warm_core_era5_K, phys: PH[i]?.warm_core_K, unet: s.warm_core_unet_K, ana: s.warm_core_K });
     if (!fields) return;
-    const t = fmtT(s.time);
     const F = k => fields.get(`s${i}.${k}`);
+    const A = views.get('c_ana'), R = views.get('c_ref');
     const ir = F('ir_obs_C13'); const irr = rangeAbove(ir, 50);
     $('irrange').textContent = irr ? `${irr[0].toFixed(0)} to ${irr[1].toFixed(0)} K` : '';
-    const mo = F('mw_obs_7'), ms = F('mw_sim_7'); const mr = rangeAbove(mo, 50);
-    if (mr) {
-      views.get('c_mwo').draw(mo, 'div', mr[0], mr[1], { maskBelow: 50, label: `ATMS channel 7 observed, ${t}, ${mr[0].toFixed(0)} to ${mr[1].toFixed(0)} K` });
-      views.get('c_mws').draw(shifted(ms, -BIAS_CH7), 'div', mr[0], mr[1], { maskBelow: 50, label: `ATMS channel 7 simulated from the analysis, bias-corrected, ${t}` });
-    } else {
-      views.get('c_mwo').draw(mo, 'div', 0, 1, { maskBelow: 50, label: `ATMS channel 7: no overpass at ${t}` });
-      views.get('c_mws').draw(ms, 'div', 0, 1, { maskBelow: 50, label: `ATMS channel 7 simulated: no overpass at ${t}` });
+    wide(X.v === 'xsec');
+    if (X.v === 'temp') {
+      const lv = X.level, ana = anomaly(F(`T${lv}`));
+      const refField = X.ref === 'era5' ? F(`truth.T${lv}`) : X.ref === 'unet' ? F('T300_unet') : fields.has(`p${i}.T300`) ? fields.get(`p${i}.T300`) : null;
+      const ref = refField ? anomaly(refField) : null;
+      $('lab_ana').textContent = `Analysis · ${lv} hPa`; $('sub_ana').textContent = 'temperature anomaly';
+      A.draw(ana, 'div', -4, 4, { label: `Analysis ${lv} hPa temperature anomaly, ${t}, minus 4 to plus 4 K` });
+      if (ref && X.diff) {
+        $('lab_ref').textContent = `Analysis minus ${REFNAME[X.ref]} · ${lv} hPa`; $('sub_ref').textContent = 'difference, own scale';
+        R.draw(minus(ana, ref), 'div', -2, 2, { label: `Analysis minus ${REFNAME[X.ref]} at ${lv} hPa, ${t}, minus 2 to plus 2 K` });
+        setScale('div', '-2', '+2', 'K, difference', `left map on the anomaly scale (-4 to +4 K); right map: analysis minus ${REFNAME[X.ref]}`);
+      } else {
+        $('lab_ref').textContent = `${REFNAME[X.ref]} · ${lv} hPa`; $('sub_ref').textContent = ref ? 'temperature anomaly' : 'not available';
+        if (ref) R.draw(ref, 'div', -4, 4, { label: `${REFNAME[X.ref]} ${lv} hPa temperature anomaly, ${t}` });
+        setScale('div', '-4', '+4', 'K from the domain mean', 'storm-centred box, about 560 km across; north up');
+      }
+    } else if (X.v === 'rain') {
+      const ana = F('precip'), ref = F('truth.precip');
+      $('lab_ana').textContent = 'Analysis'; $('sub_ana').textContent = 'rain rate, ensemble mean';
+      A.draw(ana, 'seq', 0, 30, { label: `Analysis rain rate, ${t}, 0 to 30 mm per hour` });
+      if (X.diff) {
+        $('lab_ref').textContent = 'Analysis minus IMERG'; $('sub_ref').textContent = 'difference, own scale';
+        R.draw(minus(ana, ref), 'div', -15, 15, { label: `Analysis minus IMERG rain rate, ${t}, minus 15 to plus 15 mm per hour` });
+        setScale('div', '-15', '+15', 'mm/h, difference', 'left map 0 to 30 mm/h; right map: analysis minus IMERG');
+      } else {
+        $('lab_ref').textContent = 'IMERG'; $('sub_ref').textContent = 'Final Run, 30 min';
+        R.draw(ref, 'seq', 0, 30, { label: `IMERG rain rate, ${t}` });
+        setScale('seq', '0', '30', 'mm/h', 'storm-centred box, about 560 km across; north up');
+      }
+    } else if (X.v === 'obs') {
+      const mo = F('mw_obs_7'), ms = F('mw_sim_7'); const mr = rangeAbove(mo, 50);
+      $('lab_ana').textContent = 'ATMS channel 7 · observed'; $('sub_ana').textContent = '54.4 GHz, 16 x 16';
+      $('lab_ref').textContent = 'ATMS channel 7 · simulated'; $('sub_ref').textContent = 'from the analysis, bias-corrected';
+      if (mr) {
+        A.draw(mo, 'div', mr[0], mr[1], { maskBelow: 50, label: `ATMS channel 7 observed, ${t}, ${mr[0].toFixed(0)} to ${mr[1].toFixed(0)} K` });
+        const sim = shifted(ms, -BIAS_CH7); for (let k = 0; k < sim.data.length; k++) if (!(mo.data[k] > 50)) sim.data[k] = 0;   // show the simulation only inside the observed swath
+        R.draw(sim, 'div', mr[0], mr[1], { maskBelow: 50, label: `ATMS channel 7 simulated from the analysis inside the observed swath, bias-corrected, ${t}` });
+        setScale('div', mr[0].toFixed(0), mr[1].toFixed(0), 'K brightness temperature', 'scale set by the observed swath at this time; grey is outside the swath');
+      } else {
+        A.draw(mo, 'div', 0, 1, { maskBelow: 50, label: `ATMS channel 7: no overpass at ${t}` });
+        R.draw(ms, 'div', 0, 1, { maskBelow: 50, label: `ATMS channel 7 simulated: no overpass at ${t}` });
+        setScale('div', '', '', 'no ATMS overpass in the window', 'the infrared image on the left is the only observation at this time');
+      }
+    } else if (X.v === 'spread') {
+      $('lab_ana').textContent = 'Ensemble spread · 300 hPa'; $('sub_ana').textContent = '8 members, standard deviation';
+      A.draw(F('spread300'), 'seq', 0, 0.3, { label: `Ensemble spread at 300 hPa, ${t}, 0 to 0.3 K` });
+      $('lab_ref').textContent = 'Analysis minus direct U-Net · 300 hPa'; $('sub_ref').textContent = 'what the prior and the physics changed';
+      R.draw(minus(anomaly(F('T300')), anomaly(F('T300_unet'))), 'div', -1, 1, { label: `Analysis minus direct U-Net at 300 hPa, ${t}, minus 1 to plus 1 K` });
+      setScale('seq', '0', '0.3', 'K spread (left)', 'right map: analysis minus direct U-Net, -1 to +1 K, diverging scale');
+    } else if (X.v === 'xsec') {
+      const ana = rowAnomaly(F('xsec_T')), ref = rowAnomaly(F('truth.xsec_T'));
+      $('lab_ana').textContent = 'Analysis · east to west through the centre'; $('sub_ana').textContent = '200 to 1000 hPa';
+      $('lab_ref').textContent = 'ERA5 · east to west through the centre'; $('sub_ref').textContent = '200 to 1000 hPa';
+      A.draw(ana, 'div', -4, 4, { label: `Analysis east-west temperature cross-section, anomaly from level mean, ${t}` });
+      R.draw(ref, 'div', -4, 4, { label: `ERA5 east-west temperature cross-section, ${t}` });
+      setScale('div', '-4', '+4', 'K from each level mean', 'top of each panel is 200 hPa, bottom 1000 hPa; the analysis has ten levels, ERA5 five');
     }
-    views.get('c_t3a').draw(anomaly(F('T300')), 'div', -4, 4, { label: `Analysis 300 hPa temperature anomaly, ${t}, minus 4 to plus 4 K` });
-    views.get('c_t3e').draw(anomaly(F('truth.T300')), 'div', -4, 4, { label: `ERA5 300 hPa temperature anomaly, ${t}` });
-    views.get('c_t8a').draw(anomaly(F('T850')), 'div', -4, 4, { label: `Analysis 850 hPa temperature anomaly, ${t}` });
-    views.get('c_t8e').draw(anomaly(F('truth.T850')), 'div', -4, 4, { label: `ERA5 850 hPa temperature anomaly, ${t}` });
-    views.get('c_pa').draw(F('precip'), 'seq', 0, 30, { label: `Analysis rain rate, ${t}, 0 to 30 mm per hour` });
-    views.get('c_pe').draw(F('truth.precip'), 'seq', 0, 30, { label: `IMERG rain rate, ${t}` });
-    views.get('c_xa').draw(rowAnomaly(F('xsec_T')), 'div', -4, 4, { label: `Analysis east-west temperature cross-section, anomaly from level mean, ${t}` });
-    views.get('c_xe').draw(rowAnomaly(F('truth.xsec_T')), 'div', -4, 4, { label: `ERA5 east-west temperature cross-section, ${t}` });
-    views.get('c_sp').draw(F('spread300'), 'seq', 0, 0.5, { label: `Ensemble spread at 300 hPa, ${t}, 0 to 0.5 K` });
-    if (fields.has(`p${i}.T300`)) views.get('c_t3p').draw(anomaly(fields.get(`p${i}.T300`)), 'div', -4, 4, { label: `Physics-only run, 300 hPa anomaly, ${t}` });
   }
 
   // ---- imagery loop: requestAnimationFrame, paused off-screen and under reduced motion ----
@@ -121,6 +203,7 @@ async function main() {
   hero.slider.addEventListener('input', e => { setPlaying(false); select(+e.target.value); });
   hero.slider.max = String(S.length - 1);
 
+  syncControls();
   select(cur);
   setPlaying(playing);
 

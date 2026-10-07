@@ -38,5 +38,13 @@ prefers-reduced-motion. Colour maps are Moreland cool-warm and viridis. Everythi
 is a native control or an ARIA-labelled canvas; the time strip is an arrow-key roving group.
 Strict CSP (no inline script or style), dark scheme, print rules.
 
+The page is organised as four views (Overview, Explorer, Results, Methods) with the long tables behind
+`<details>` disclosures. The explorer shows one variable at a time as two large maps, the analysis on the
+left and its reference on the right on one colour scale (Temperature at 300 or 850 hPa against ERA5, the
+direct U-Net or the physics-only run; Rain against IMERG; Observations as ATMS channel 7 observed and
+simulated inside the swath; Spread beside the analysis-minus-U-Net difference; the east-west cross-section),
+with a difference toggle on its own scale, three per-scene metrics and a one-sentence finding. On narrow
+screens one map is shown with an Analysis/Reference switch. Milton only, since only its fields are packed.
+
 
 Polo (September 2026) is a static section like Melissa's: figures from results/polo (polo_summary.png, polo_structure_2026-09-22T2000.png copied to raw/polo_structure.png) and the per-scene table generated from results/polo/polo_scores.csv. The time-continuity subsection uses results/polo/polo_persist.png (copied to raw/) and the numbers from polo_persist_compare.csv.

@@ -61,7 +61,7 @@ def test_canvases_are_labelled_and_painted(pw, server):
         assert role == 'img' and label and len(label) > 10, (role, label)
         assert w >= 2 * cw - 2, f'canvas not DPR-aware: backing {w} for css {cw}'
     # a painted canvas is not uniformly the background colour
-    nonuniform = page.eval_on_selector('#c_t3a', '''c => { const d = c.getContext('2d').getImageData(0,0,c.width,c.height).data; const s = new Set(); for (let i=0;i<d.length;i+=4*97) s.add(d[i]<<16|d[i+1]<<8|d[i+2]); return s.size; }''')
+    nonuniform = page.eval_on_selector('#c_ana', '''c => { const d = c.getContext('2d').getImageData(0,0,c.width,c.height).data; const s = new Set(); for (let i=0;i<d.length;i+=4*97) s.add(d[i]<<16|d[i+1]<<8|d[i+2]); return s.size; }''')
     assert nonuniform > 10
 
 
