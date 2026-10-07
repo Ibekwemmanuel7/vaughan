@@ -28,3 +28,12 @@ docs/Milton_DA_Interview_Deck.*
 
 !data/__pycache__/
 data/__pycache__/
+# local review material and previews, never public
+dashboard/.preview/
+dashboard/src/*.bak
+.chart-data-*/
+.review-deps/
+review/
+docs/*.docx
+docs/revised/
+docs/submissions/

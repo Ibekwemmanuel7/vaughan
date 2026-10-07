@@ -45,7 +45,7 @@ def load(pw, server, width=1280, height=900, dpr=1):
 def test_loads_without_errors(pw, server):
     page, errors = load(pw, server)
     assert errors == [], errors
-    assert page.locator('#tiles .tile').count() == 6
+    assert page.locator('#tiles .tile').count() == 3
     assert page.locator('#errtable tbody tr').count() == 16
     assert page.locator('#audit tbody tr').count() == 12
     assert page.locator('#strip .chip').count() == 16
@@ -116,5 +116,5 @@ def test_polo_section(pw, server):
     for name in ('polo_summary', 'polo_structure', 'polo_persist'):
         ok = page.evaluate(f"() => {{ const i = document.querySelector('img[src=\"img/{name}.webp\"]'); return i && i.complete && i.naturalWidth > 0 }}")
         assert ok, name
-    assert page.locator('nav a[href="#polo"]').count() >= 1
+    assert page.locator('a[href="#polo"]').count() >= 1 and page.locator('nav.toc a').count() == 6
     assert errors == [], errors

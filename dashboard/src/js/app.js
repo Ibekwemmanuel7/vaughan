@@ -145,12 +145,9 @@ function staticSections(M, S, PH, V1, LEV, i300) {
   const peak = S.map(s => LEV[s.warm_core_K.indexOf(Math.max(...s.warm_core_K))]);
   const at300 = peak.filter(p => p === 300 || p === 250 || p === 400).length;
   $('tiles').replaceChildren(
-    tile(`${Math.min(...dom).toFixed(1)} to ${Math.max(...dom).toFixed(1)}`, 'K', 'domain temperature RMSE against ERA5, 14 scored scenes'),
-    tile(`${Math.min(...core).toFixed(1)} to ${Math.max(...core).toFixed(1)}`, 'K', 'inner-core temperature RMSE at 300 hPa, central 16 x 16 pixels (about 70 km)'),
-    tile(`${at300} of ${S.length}`, '', 'scenes with the warm core peaking at 250 to 400 hPa, where it belongs'),
-    tile('1.5', 'K', 'ATMS sounding-channel misfit after calibration; the ERA5 truth itself sits at 2.5 to 3 K'),
-    tile(`${S.filter(covered).length} of ${S.length}`, '', 'analysis times with an ATMS overpass; the rest are infrared plus prior'),
-    tile('805 / 252', '', 'training and validation scenes (2023 season held out, Milton never seen)'),
+    tile(`${Math.min(...core).toFixed(1)} to ${Math.max(...core).toFixed(1)}`, 'K', `inner-core temperature RMSE at 300 hPa against ERA5, central 16 x 16 pixels (about 70 km), ${S.length} scenes; domain mean ${Math.min(...dom).toFixed(1)} to ${Math.max(...dom).toFixed(1)} K on the ${dom.length} with full labels`),
+    tile(`${at300} of ${S.length}`, '', 'scenes with the warm core peaking at 250 to 400 hPa, where a mature hurricane keeps it'),
+    tile(`${S.filter(covered).length} of ${S.length}`, '', 'analysis times with an ATMS overpass; the rest are infrared plus prior, with a 1.5 K sounding-channel misfit after calibration on the covered ones'),
   );
   // time series
   drawSeries($('series'), $('tip2'), {
