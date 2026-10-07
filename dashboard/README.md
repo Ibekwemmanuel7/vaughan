@@ -44,7 +44,11 @@ left and its reference on the right on one colour scale (Temperature at 300 or 8
 direct U-Net or the physics-only run; Rain against IMERG; Observations as ATMS channel 7 observed and
 simulated inside the swath; Spread beside the analysis-minus-U-Net difference; the east-west cross-section),
 with a difference toggle on its own scale, three per-scene metrics and a one-sentence finding. On narrow
-screens one map is shown with an Analysis/Reference switch. Milton only, since only its fields are packed.
+screens one map is shown with an Analysis/Reference switch. The storm selector lists Milton and, when
+`raw/dash_melissa.json` and `raw/dash_polo.json` exist (written by `colab/export_storm_fields_cell.py` on a CPU
+runtime from the saved analyses and scene files), Melissa and Polo; each extra storm is packed into its own
+`data/fields.<storm>.<hash>.bin`, fetched the first time it is selected, so the first paint stays Milton-sized.
+The Gulf imagery loop and the enhanced core image exist for Milton only; the other storms show the band 13 field.
 
 
 Polo (September 2026) is a static section like Melissa's: figures from results/polo (polo_summary.png, polo_structure_2026-09-22T2000.png copied to raw/polo_structure.png) and the per-scene table generated from results/polo/polo_scores.csv. The time-continuity subsection uses results/polo/polo_persist.png (copied to raw/) and the numbers from polo_persist_compare.csv.

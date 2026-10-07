@@ -37,3 +37,5 @@ review/
 docs/*.docx
 docs/revised/
 docs/submissions/
+dashboard/raw/dash_melissa.json
+dashboard/raw/dash_polo.json

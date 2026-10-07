@@ -72,7 +72,7 @@ def main():
     for d in ('js', 'data', 'img/gulf', 'img/core'):
         os.makedirs(os.path.join(OUT, d), exist_ok=True)
     if OUT == HERE:  # in place: drop previously hashed assets so only the current build remains
-        for pat in ('styles.*.css', 'js/*.*.js', 'data/fields.*.bin'):
+        for pat in ('styles.*.css', 'js/*.*.js', 'data/fields.*.bin', 'data/fields.*.*.bin'):
             import glob
             for p in glob.glob(os.path.join(OUT, pat)):
                 os.remove(p)
@@ -90,6 +90,29 @@ def main():
             pk.add(f's{i}.truth.{k}', s['truth'][k])
         if PH[i].get('fields', {}).get('T300') is not None:
             pk.add(f'p{i}.T300', PH[i]['fields']['T300'])
+    # other storms, exported by colab/export_storm_fields_cell.py into raw/dash_<storm>.json (optional): each gets its own
+    # field buffer, fetched only when the explorer's storm selector asks for it, so the first paint stays Milton-sized
+    STORMS = {'milton': {'label': 'Milton, October 2024', 'temperature_reference': 'ERA5', 'rain_reference': 'IMERG Final Run', 'scenes': None}}
+    for storm in ('melissa', 'polo'):
+        path = os.path.join(RAW, f'dash_{storm}.json')
+        if not os.path.exists(path):
+            continue
+        E = json.load(open(path, encoding='utf-8'))
+        pk2 = FieldPacker()
+        for i, s in enumerate(E['scenes']):
+            for k in SCENE_FIELDS:
+                if s['fields'].get(k) is not None:
+                    pk2.add(f's{i}.{k}', s['fields'][k])
+            for k in TRUTH_FIELDS:
+                if s.get('truth', {}).get(k) is not None:
+                    pk2.add(f's{i}.truth.{k}', s['truth'][k])
+        fb2 = pk2.bytes(); name2 = f'fields.{storm}.{h8(fb2)}.bin'
+        open(os.path.join(OUT, 'data', name2), 'wb').write(fb2)
+        STORMS[storm] = {'label': {'melissa': 'Melissa, October 2025', 'polo': 'Polo, September 2026'}[storm],
+                         'temperature_reference': E.get('temperature_reference', 'ERA5'), 'rain_reference': E.get('rain_reference', 'IMERG'),
+                         'run': E.get('run', ''), 'scenes': [{k: v for k, v in s.items() if k not in ('fields', 'truth')} for s in E['scenes']],
+                         'fields': {'file': f'data/{name2}', 'bytes': len(fb2), 'dtype': 'uint16-le', 'index': pk2.index}}
+        print(f'{storm}: {len(E["scenes"])} scenes packed, {len(fb2) / 1e6:.1f} MB')
     P = D['prior_samples']
     for j in range(len(P['T400'])):
         pk.add(f'prior.T400.{j}', P['T400'][j])
@@ -153,7 +176,9 @@ def main():
         'prior_samples': {'n': len(P['T400']), 'levels_hpa': P['levels_hpa']},
         'imagery': {'frames': frames, 'gulf_extent': im['gulf_extent'], 'default_index': 10},
         'fields': {'file': f'data/{fields_name}', 'bytes': len(fb), 'dtype': 'uint16-le', 'index': pk.index},
+        'storms': STORMS,
     }
+    STORMS['milton']['scenes'] = M['scenes']
     mb = json.dumps(M, separators=(',', ':')).encode()
     open(os.path.join(OUT, 'data', 'manifest.json'), 'wb').write(mb)
 

@@ -215,3 +215,4 @@ table.summary td:first-child{font-family:var(--serif);font-size:15px}
   .maps[data-show="ref"] .map.ana{display:none}
   .lab.dim{margin-left:0;flex-basis:100%}
 }
+[hidden]{display:none !important}

@@ -15,30 +15,57 @@ import { fmt, h, table, tile } from './dom.5283f545.js';
 
 const $ = id => document.getElementById(id);
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
-const fmtT = t => { const d = new Date(t + 'Z'); return `${String(d.getUTCDate()).padStart(2, '0')} Oct ${String(d.getUTCHours()).padStart(2, '0')}Z`; };
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmtT = t => { const d = new Date(t + 'Z'); return `${String(d.getUTCDate()).padStart(2, '0')} ${MON[d.getUTCMonth()]} ${String(d.getUTCHours()).padStart(2, '0')}Z`; };
 const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
 const BIAS_CH7 = 18.29;   // ATMS channel 7 archive bias (K), see the audit table
 
 async function main() {
   const status = $('status');
   const M = await getJSON('data/manifest.json');
-  const S = M.scenes, PH = M.side.physics_only, V1 = M.side.v1_diverged, LEV = M.levels_hpa;
+  let S = M.scenes, storm = 'milton';                 // the storm shown in the explorer
+  const PH = M.side.physics_only, V1 = M.side.v1_diverged, LEV = M.levels_hpa;
+  const STORMS = M.storms || { milton: { label: 'Milton, October 2024', temperature_reference: 'ERA5', rain_reference: 'IMERG Final Run', scenes: M.scenes } };
+  const tref = () => STORMS[storm].temperature_reference, rref = () => STORMS[storm].rain_reference;
   const i300 = LEV.indexOf(300);
   const covered = s => s.mw_coverage > 0.3;
 
-  staticSections(M, S, PH, V1, LEV, i300);
+  staticSections(M, M.scenes, PH, V1, LEV, i300);
 
   // ---- scene explorer state ----
   const views = mountFields(document);
   let cur = M.imagery.default_index;
-  let fields = null;                                  // set once the buffer arrives
+  let fields = null;                                  // decoder for the storm on show, set once its buffer arrives
+  const loaded = {};                                  // storm -> decoder, fetched on first use
   const X = { v: 'temp', level: 300, ref: 'era5', diff: false };    // variable, level, reference, difference
 
   const hero = { img: $('heroimg'), lab: $('herolab'), slider: $('heroslider'), idx: $('heroidx'), btn: $('playbtn') };
   const strip = $('strip');
-  const chips = S.map((s, i) => h('button', { class: 'chip', type: 'button', 'aria-pressed': 'false', tabindex: i === cur ? '0' : '-1', onclick: () => { setPlaying(false); select(i); } },
-    h('span', { class: `dot ${covered(s) ? 'on' : ''}`, 'aria-hidden': 'true' }), fmtT(s.time), covered(s) ? h('span', { class: 'sr-only' }, ', ATMS overpass') : null));
-  chips.forEach(c => strip.append(c));
+  let chips = [];
+  function buildStrip() {
+    chips = S.map((s, i) => h('button', { class: 'chip', type: 'button', 'aria-pressed': 'false', tabindex: i === cur ? '0' : '-1', onclick: () => { setPlaying(false); select(i); } },
+      h('span', { class: `dot ${covered(s) ? 'on' : ''}`, 'aria-hidden': 'true' }), fmtT(s.time), covered(s) ? h('span', { class: 'sr-only' }, ', ATMS overpass') : null));
+    strip.replaceChildren(...chips);
+  }
+  buildStrip();
+  // storm selector: Milton always; Melissa and Polo when their fields were packed by the build
+  const ssel = $('stormsel');
+  ssel.replaceChildren(...Object.keys(STORMS).map(k => h('option', { value: k }, STORMS[k].label)));
+  ssel.addEventListener('change', e => { setPlaying(false); setStorm(e.target.value); });
+  function setStorm(key) {
+    if (!STORMS[key]) return;
+    storm = key; S = STORMS[key].scenes;
+    ssel.value = key;
+    cur = key === 'milton' ? M.imagery.default_index : Math.max(0, S.findIndex(s => covered(s) && s.warm_core_K[i300] === Math.max(...S.filter(covered).map(x => x.warm_core_K[i300]))));
+    buildStrip(); syncControls();
+    fields = loaded[key] || null;
+    select(cur);
+    if (!fields) {
+      status.hidden = false; status.textContent = `loading ${STORMS[key].label} fields`;
+      loadFields(key === 'milton' ? M : STORMS[key]).then(d => { loaded[key] = d; if (storm === key) { fields = d; status.hidden = true; renderScene(cur); } })
+        .catch(err => { status.textContent = `fields unavailable: ${err.message}`; });
+    }
+  }
   strip.addEventListener('keydown', e => {
     const k = { ArrowRight: 1, ArrowLeft: -1, Home: -Infinity, End: Infinity }[e.key];
     if (k === undefined) return;
@@ -66,15 +93,19 @@ async function main() {
     const temp = X.v === 'temp';
     $('levelgroup').hidden = !temp;
     $('refgroup').hidden = !temp;
-    // physics-only and U-Net fields exist at 300 hPa only
-    const phys = $('refsel').querySelector('[value=phys]'), un = $('refsel').querySelector('[value=unet]');
-    phys.disabled = un.disabled = X.level !== 300;
-    if (X.level !== 300 && X.ref !== 'era5') { X.ref = 'era5'; $('refsel').value = 'era5'; }
+    // physics-only and U-Net fields exist at 300 hPa only; the physics-only run was made for Milton only
+    const phys = $('refsel').querySelector('[value=phys]'), un = $('refsel').querySelector('[value=unet]'), era = $('refsel').querySelector('[value=era5]');
+    un.disabled = X.level !== 300;
+    phys.disabled = X.level !== 300 || storm !== 'milton';
+    era.textContent = tref();
+    if ((X.level !== 300 && X.ref !== 'era5') || (X.ref === 'phys' && storm !== 'milton')) { X.ref = 'era5'; $('refsel').value = 'era5'; }
     $('diffchk').parentElement.hidden = !(X.v === 'temp' || X.v === 'rain');
     $('maps').dataset.var = X.v;
   }
 
   function showHero(i) {
+    $('timelab').textContent = fmtT(S[i].time);
+    if (storm !== 'milton') return;                 // the Gulf loop and the enhanced core image exist for Milton only
     const f = M.imagery.frames[i];
     hero.img.src = f.gulf;
     hero.img.alt = `GOES-16 band 13 enhanced infrared image of Hurricane Milton over the Gulf of Mexico, ${fmtT(f.time)} UTC`;
@@ -82,7 +113,6 @@ async function main() {
     hero.slider.value = i;
     hero.idx.textContent = `${i + 1} / ${S.length}`;
     $('coreimg').src = f.core;
-    $('timelab').textContent = fmtT(f.time);
   }
 
   function select(i) {
@@ -94,7 +124,7 @@ async function main() {
 
   /** a minus b, same shape */
   const minus = (a, b) => { const data = new Float32Array(a.data.length); for (let k = 0; k < data.length; k++) data[k] = a.data[k] - b.data[k]; return { data, h: a.h, w: a.w }; };
-  const REFNAME = { era5: 'ERA5', unet: 'direct U-Net', phys: 'physics-only run' };
+  const REFNAME = () => ({ era5: tref(), unet: 'direct U-Net', phys: 'physics-only run' });
   function setScale(kind, lo, hi, units, note) {
     $('scale_grad').style.background = gradient(kind === 'div' ? DIVERGING : kind === 'seq' ? SEQUENTIAL : GREY);
     $('scale_lo').textContent = lo; $('scale_hi').textContent = hi; $('scale_units').textContent = units;
@@ -107,48 +137,52 @@ async function main() {
     const t = fmtT(s.time);
     const e5 = s.warm_core_era5_K ? s.warm_core_era5_K[i300] : null;
     const st = [
-      [isNum(s.inner_core_rmse_K.analysis) ? `${fmt(s.inner_core_rmse_K.analysis)} K` : 'no label', `inner-core RMSE at 300 hPa against ERA5, central 70 km (direct U-Net ${fmt(s.inner_core_rmse_K.unet)} K)`],
+      [isNum(s.inner_core_rmse_K.analysis) ? `${fmt(s.inner_core_rmse_K.analysis)} K` : 'no label', `inner-core RMSE at 300 hPa against ${tref()}, central 70 km (direct U-Net ${fmt(s.inner_core_rmse_K.unet)} K)`],
       [covered(s) ? `${Math.round(s.mw_coverage * 100)}%` : 'none', covered(s) ? 'of the domain seen by ATMS in the 90 minute window' : 'ATMS overpass in the window: infrared and prior only'],
-      [`${fmt(s.warm_core_K[i300], 1)} K`, `warm core at 300 hPa, analysis; ERA5 ${e5 == null ? 'n/a' : fmt(e5, 1) + ' K'}; member spread ${fmt(s.spread_core_300_K)} K`],
+      [`${fmt(s.warm_core_K[i300], 1)} K`, `warm core at 300 hPa, analysis; ${tref()} ${e5 == null ? 'n/a' : fmt(e5, 1) + ' K'}; member spread ${fmt(s.spread_core_300_K)} K`],
     ];
     $('scenestats').replaceChildren(...st.map(([n, l]) => h('div', { class: 'stat' }, h('div', { class: 'n' }, n), h('div', { class: 'l' }, l))));
     const d = isNum(s.inner_core_rmse_K.analysis) && isNum(s.inner_core_rmse_K.unet) ? s.inner_core_rmse_K.analysis - s.inner_core_rmse_K.unet : null;
     $('finding').textContent = covered(s)
-      ? `At ${t} the sounder saw ${Math.round(s.mw_coverage * 100)} percent of the domain. The analysis puts the 300 hPa warm core at ${fmt(s.warm_core_K[i300], 1)} K against ERA5's ${e5 == null ? 'unlabelled value' : fmt(e5, 1) + ' K'}${isNum(s.inner_core_rmse_K.analysis) ? `, with an inner-core error of ${fmt(s.inner_core_rmse_K.analysis)} K` : ''}${d == null ? '' : d < -0.02 ? `, ${fmt(-d)} K better than the direct U-Net` : d > 0.02 ? `, ${fmt(d)} K worse than the direct U-Net` : ', the same as the direct U-Net to 0.02 K'}.`
-      : `At ${t} there was no ATMS overpass, so the analysis is the infrared through the learned proxy plus the prior. It puts the 300 hPa warm core at ${fmt(s.warm_core_K[i300], 1)} K against ERA5's ${e5 == null ? 'unlabelled value' : fmt(e5, 1) + ' K'}${isNum(s.inner_core_rmse_K.analysis) ? `, inner-core error ${fmt(s.inner_core_rmse_K.analysis)} K` : ''}; the full system and the direct U-Net coincide here, as they must.`;
-    drawProfile($('profile'), LEV, { era5: s.warm_core_era5_K, phys: PH[i]?.warm_core_K, unet: s.warm_core_unet_K, ana: s.warm_core_K });
+      ? `At ${t} the sounder saw ${Math.round(s.mw_coverage * 100)} percent of the domain. The analysis puts the 300 hPa warm core at ${fmt(s.warm_core_K[i300], 1)} K against ${tref()}'s ${e5 == null ? 'unlabelled value' : fmt(e5, 1) + ' K'}${isNum(s.inner_core_rmse_K.analysis) ? `, with an inner-core error of ${fmt(s.inner_core_rmse_K.analysis)} K` : ''}${d == null ? '' : d < -0.02 ? `, ${fmt(-d)} K better than the direct U-Net` : d > 0.02 ? `, ${fmt(d)} K worse than the direct U-Net` : ', the same as the direct U-Net to 0.02 K'}.`
+      : `At ${t} there was no ATMS overpass, so the analysis is the infrared through the learned proxy plus the prior. It puts the 300 hPa warm core at ${fmt(s.warm_core_K[i300], 1)} K against ${tref()}'s ${e5 == null ? 'unlabelled value' : fmt(e5, 1) + ' K'}${isNum(s.inner_core_rmse_K.analysis) ? `, inner-core error ${fmt(s.inner_core_rmse_K.analysis)} K` : ''}; the full system and the direct U-Net coincide here, as they must.`;
+    drawProfile($('profile'), LEV, { era5: s.warm_core_era5_K, phys: storm === 'milton' ? PH[i]?.warm_core_K : null, unet: s.warm_core_unet_K, ana: s.warm_core_K });
     if (!fields) return;
+    const has = k => fields.has(`s${i}.${k}`);
     const F = k => fields.get(`s${i}.${k}`);
+    // the storm-centred infrared: Milton has the enhanced image, the other storms the band 13 field drawn in grey
+    $('coreimg').hidden = storm !== 'milton'; views.get('c_ir').canvas.hidden = storm === 'milton';
     const A = views.get('c_ana'), R = views.get('c_ref');
     const ir = F('ir_obs_C13'); const irr = rangeAbove(ir, 50);
     $('irrange').textContent = irr ? `${irr[0].toFixed(0)} to ${irr[1].toFixed(0)} K` : '';
+    if (storm !== 'milton' && irr) views.get('c_ir').draw(ir, 'grey', irr[0], irr[1], { invert: true, maskBelow: 50, label: `GOES band 13 observed brightness temperature, ${t}, cold cloud tops light` });
     wide(X.v === 'xsec');
     if (X.v === 'temp') {
       const lv = X.level, ana = anomaly(F(`T${lv}`));
-      const refField = X.ref === 'era5' ? F(`truth.T${lv}`) : X.ref === 'unet' ? F('T300_unet') : fields.has(`p${i}.T300`) ? fields.get(`p${i}.T300`) : null;
+      const refField = X.ref === 'era5' ? (has(`truth.T${lv}`) ? F(`truth.T${lv}`) : null) : X.ref === 'unet' ? F('T300_unet') : (storm === 'milton' && fields.has(`p${i}.T300`)) ? fields.get(`p${i}.T300`) : null;
       const ref = refField ? anomaly(refField) : null;
       $('lab_ana').textContent = `Analysis · ${lv} hPa`; $('sub_ana').textContent = 'temperature anomaly';
       A.draw(ana, 'div', -4, 4, { label: `Analysis ${lv} hPa temperature anomaly, ${t}, minus 4 to plus 4 K` });
       if (ref && X.diff) {
-        $('lab_ref').textContent = `Analysis minus ${REFNAME[X.ref]} · ${lv} hPa`; $('sub_ref').textContent = 'difference, own scale';
-        R.draw(minus(ana, ref), 'div', -2, 2, { label: `Analysis minus ${REFNAME[X.ref]} at ${lv} hPa, ${t}, minus 2 to plus 2 K` });
-        setScale('div', '-2', '+2', 'K, difference', `left map on the anomaly scale (-4 to +4 K); right map: analysis minus ${REFNAME[X.ref]}`);
+        $('lab_ref').textContent = `Analysis minus ${REFNAME()[X.ref]} · ${lv} hPa`; $('sub_ref').textContent = 'difference, own scale';
+        R.draw(minus(ana, ref), 'div', -2, 2, { label: `Analysis minus ${REFNAME()[X.ref]} at ${lv} hPa, ${t}, minus 2 to plus 2 K` });
+        setScale('div', '-2', '+2', 'K, difference', `left map on the anomaly scale (-4 to +4 K); right map: analysis minus ${REFNAME()[X.ref]}`);
       } else {
-        $('lab_ref').textContent = `${REFNAME[X.ref]} · ${lv} hPa`; $('sub_ref').textContent = ref ? 'temperature anomaly' : 'not available';
-        if (ref) R.draw(ref, 'div', -4, 4, { label: `${REFNAME[X.ref]} ${lv} hPa temperature anomaly, ${t}` });
+        $('lab_ref').textContent = `${REFNAME()[X.ref]} · ${lv} hPa`; $('sub_ref').textContent = ref ? 'temperature anomaly' : 'not available';
+        if (ref) R.draw(ref, 'div', -4, 4, { label: `${REFNAME()[X.ref]} ${lv} hPa temperature anomaly, ${t}` });
         setScale('div', '-4', '+4', 'K from the domain mean', 'storm-centred box, about 560 km across; north up');
       }
     } else if (X.v === 'rain') {
-      const ana = F('precip'), ref = F('truth.precip');
+      const ana = F('precip'), ref = has('truth.precip') ? F('truth.precip') : null;
       $('lab_ana').textContent = 'Analysis'; $('sub_ana').textContent = 'rain rate, ensemble mean';
       A.draw(ana, 'seq', 0, 30, { label: `Analysis rain rate, ${t}, 0 to 30 mm per hour` });
-      if (X.diff) {
+      if (ref && X.diff) {
         $('lab_ref').textContent = 'Analysis minus IMERG'; $('sub_ref').textContent = 'difference, own scale';
         R.draw(minus(ana, ref), 'div', -15, 15, { label: `Analysis minus IMERG rain rate, ${t}, minus 15 to plus 15 mm per hour` });
         setScale('div', '-15', '+15', 'mm/h, difference', 'left map 0 to 30 mm/h; right map: analysis minus IMERG');
       } else {
-        $('lab_ref').textContent = 'IMERG'; $('sub_ref').textContent = 'Final Run, 30 min';
-        R.draw(ref, 'seq', 0, 30, { label: `IMERG rain rate, ${t}` });
+        $('lab_ref').textContent = 'IMERG'; $('sub_ref').textContent = ref ? rref() : 'not available';
+        if (ref) R.draw(ref, 'seq', 0, 30, { label: `IMERG rain rate, ${t}` });
         setScale('seq', '0', '30', 'mm/h', 'storm-centred box, about 560 km across; north up');
       }
     } else if (X.v === 'obs') {
@@ -172,12 +206,12 @@ async function main() {
       R.draw(minus(anomaly(F('T300')), anomaly(F('T300_unet'))), 'div', -1, 1, { label: `Analysis minus direct U-Net at 300 hPa, ${t}, minus 1 to plus 1 K` });
       setScale('seq', '0', '0.3', 'K spread (left)', 'right map: analysis minus direct U-Net, -1 to +1 K, diverging scale');
     } else if (X.v === 'xsec') {
-      const ana = rowAnomaly(F('xsec_T')), ref = rowAnomaly(F('truth.xsec_T'));
+      const ana = rowAnomaly(F('xsec_T')), ref = has('truth.xsec_T') ? rowAnomaly(F('truth.xsec_T')) : null;
       $('lab_ana').textContent = 'Analysis · east to west through the centre'; $('sub_ana').textContent = '200 to 1000 hPa';
-      $('lab_ref').textContent = 'ERA5 · east to west through the centre'; $('sub_ref').textContent = '200 to 1000 hPa';
+      $('lab_ref').textContent = `${tref()} · east to west through the centre`; $('sub_ref').textContent = ref ? '200 to 1000 hPa' : 'not available';
       A.draw(ana, 'div', -4, 4, { label: `Analysis east-west temperature cross-section, anomaly from level mean, ${t}` });
-      R.draw(ref, 'div', -4, 4, { label: `ERA5 east-west temperature cross-section, ${t}` });
-      setScale('div', '-4', '+4', 'K from each level mean', 'top of each panel is 200 hPa, bottom 1000 hPa; the analysis has ten levels, ERA5 five');
+      if (ref) R.draw(ref, 'div', -4, 4, { label: `${tref()} east-west temperature cross-section, ${t}` });
+      setScale('div', '-4', '+4', 'K from each level mean', `top of each panel is 200 hPa, bottom 1000 hPa; the analysis has ten levels, ${tref()} ${ref ? ref.h : 'n/a'}`);
     }
   }
 
@@ -188,7 +222,7 @@ async function main() {
   function frame(ts) {
     raf = 0;
     if (!playing || !visible) return;
-    if (ts - last >= PERIOD) { last = ts; select((cur + 1) % S.length); }
+    if (ts - last >= PERIOD) { last = ts; if (storm !== 'milton') setStorm('milton'); select((cur + 1) % S.length); }
     raf = requestAnimationFrame(frame);
   }
   function setPlaying(p) {
@@ -200,7 +234,7 @@ async function main() {
   new IntersectionObserver(([e]) => { visible = e.isIntersecting; if (visible && playing && !raf) raf = requestAnimationFrame(frame); }, { threshold: 0.1 }).observe($('imagery'));
   reduced.addEventListener('change', e => setPlaying(!e.matches));
   hero.btn.addEventListener('click', () => setPlaying(!playing));
-  hero.slider.addEventListener('input', e => { setPlaying(false); select(+e.target.value); });
+  hero.slider.addEventListener('input', e => { setPlaying(false); if (storm !== 'milton') setStorm('milton'); select(+e.target.value); });
   hero.slider.max = String(S.length - 1);
 
   syncControls();
@@ -210,10 +244,10 @@ async function main() {
   // ---- field buffer, then preload the remaining frames in the background ----
   status.hidden = false; status.textContent = 'loading fields';
   try {
-    fields = await loadFields(M);
+    fields = await loadFields(M); loaded.milton = fields;
     status.hidden = true;
     renderScene(cur);
-    priorSamples(M, fields, views);
+    priorSamples(M, loaded.milton, views);
   } catch (err) {
     status.textContent = `fields unavailable: ${err.message}`;
   }
@@ -234,7 +268,7 @@ function staticSections(M, S, PH, V1, LEV, i300) {
   );
   // time series
   drawSeries($('series'), $('tip2'), {
-    labels: S.map(s => fmtT(s.time).replace(' Oct ', '/')), atms: S.map(covered),
+    labels: S.map(s => fmtT(s.time).replace(/ [A-Z][a-z]{2} /, '/')), atms: S.map(covered),
     series: [
       { name: 'ERA5', values: S.map(s => s.warm_core_era5_K ? s.warm_core_era5_K[i300] : null), color: 'var(--s-era)', dashed: true },
       { name: 'first sampler', values: V1.map(s => s.warm_core_K[i300]), color: 'var(--s-v1)' },

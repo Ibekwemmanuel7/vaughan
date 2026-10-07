@@ -28,8 +28,8 @@ ATMS      [B,9,32,32]  ─┘        (IR queries attend       │              �
 ```
 milton_da/                 the repository (GitHub name kept)
   vaughan/                 the Python package: import vaughan; python -m vaughan.<module>
-  colab/                   Colab cells (training, experiments, Melissa, WeatherNext, cloud ice)
-  dashboard/               the published page (index.html) and the logo
+  colab/                   Colab cells (training, experiments, Melissa, Polo, WeatherNext, cloud ice, dashboard exports)
+  dashboard/               the published page: four views (Overview, Explorer, Results, Methods), build.py, the logo
   docs/                    the technical report
   results/                 scored outputs (Melissa, WeatherNext)
   data/                    downloaded scenes and raw files (ignored by git)

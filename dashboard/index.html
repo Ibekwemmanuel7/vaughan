@@ -20,8 +20,8 @@
 <link rel="apple-touch-icon" href="img/icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preload" href="data/manifest.json" as="fetch" crossorigin>
-<link rel="modulepreload" href="js/app.js?v=5eae77d3">
-<link rel="stylesheet" href="styles.8cf188b9.css">
+<link rel="modulepreload" href="js/app.js?v=de4d887b">
+<link rel="stylesheet" href="styles.a8381d7a.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -77,7 +77,7 @@
 
 <section id="explorer" class="view">
   <div class="viewhead"><div class="eyebrow">Explorer</div><h2>One analysis time, one field, against its reference</h2></div>
-  <p>Hurricane Milton, 16 analysis times from 06 to 10 October 2024. Choose a time, a variable and, for temperature, a pressure level; the left map is always the analysis and the right map its reference, on one colour scale, with the difference on its own scale a click away. Filled dots mark the times with an ATMS overpass inside the window; without one the retrieval is carried by the infrared through the learned proxy and the prior alone. Melissa and Polo are summarised as static figures under Results until their fields are exported.</p>
+  <p>Choose a storm, a time, a variable and, for temperature, a pressure level; the left map is always the analysis and the right map its reference, on one colour scale, with the difference on its own scale a click away. Filled dots mark the times with an ATMS overpass inside the window; without one the retrieval is carried by the infrared through the learned proxy and the prior alone. The Gulf loop under Overview and the enhanced core image belong to Milton; Melissa and Polo show the band 13 field itself, and Polo is scored against ERA5T.</p>
   <p class="status" id="status" role="status" hidden></p>
   <div class="toolbar" role="group" aria-label="explorer controls">
     <label class="ctlgroup"><span class="lab">Storm</span><select id="stormsel" class="sel"><option value="milton">Milton, October 2024</option></select></label>
@@ -97,7 +97,7 @@
   <div class="strip" id="strip" role="group" aria-label="analysis time; use the arrow keys to move between times"></div>
   <div class="phoneswitch" role="group" aria-label="which map to show on narrow screens"><button type="button" class="chip" data-show="ana" aria-pressed="true">Analysis</button><button type="button" class="chip" data-show="ref" aria-pressed="false">Reference</button></div>
   <div class="maps" id="maps" data-show="ana" data-var="temp">
-    <figure class="map obs" id="map_ir"><figcaption class="t"><span>GOES-16 band 13 · observed</span><span id="irrange"></span></figcaption><img class="coreimg" id="coreimg" width="384" height="384" decoding="async" alt="storm-centred GOES-16 band 13 image"></figure>
+    <figure class="map obs" id="map_ir"><figcaption class="t"><span>GOES band 13 · observed</span><span id="irrange"></span></figcaption><img class="coreimg" id="coreimg" width="384" height="384" decoding="async" alt="storm-centred GOES-16 band 13 image"><canvas class="field" id="c_ir" hidden></canvas></figure>
     <figure class="map ana"><figcaption class="t"><span id="lab_ana">Analysis</span><span id="sub_ana"></span></figcaption><canvas class="field" id="c_ana"></canvas></figure>
     <figure class="map ref"><figcaption class="t"><span id="lab_ref">ERA5</span><span id="sub_ref"></span></figcaption><canvas class="field" id="c_ref"></canvas></figure>
   </div>
@@ -345,6 +345,6 @@
 </footer>
 </div>
 <noscript><p class="status">This page draws its figures with JavaScript; the text and tables above are complete without it, the scene explorer is not.</p></noscript>
-<script type="module" src="js/app.js?v=5eae77d3"></script>
+<script type="module" src="js/app.js?v=de4d887b"></script>
 </body>
 </html>
