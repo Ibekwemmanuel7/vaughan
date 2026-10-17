@@ -198,3 +198,8 @@ and improved both temperature and precipitation RMSE relative to the U-Net proxy
 ## Flood and coastal impacts roadmap
 
 The portfolio scope now includes flood and coastal impacts as a planned extension. Existing hurricane-retrieval code does not constitute a validated flood or coastal-damage service. See [the delivery roadmap](docs/portfolio/FLOOD_COASTAL_ROADMAP.md).
+
+The first [Ian inspection pilot](docs/portfolio/IAN_INSPECTION_PILOT.md) now includes an experimental,
+retrospective high-water-mark proximity baseline (`vaughan.flood`). It screens point assets
+for human review using public event evidence; it does not map inundation or establish damage.
+Flood/coastal scientific validation, customer delivery and shoreline/recovery methods remain planned.

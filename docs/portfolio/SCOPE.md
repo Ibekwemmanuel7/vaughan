@@ -12,13 +12,19 @@ Portfolio map: [Product responsibilities](https://github.com/Ibekwemmanuel7/Lill
 
 **Status:** Existing hurricane research code; flood and coastal-impact extensions are planned.
 
+First bounded addition: an experimental retrospective Ian high-water-mark proximity baseline
+for point-asset review, with [pilot design and acceptance gates](IAN_INSPECTION_PILOT.md).
+Flood mapping, shoreline/recovery processing and customer validation remain unimplemented.
+
 ## Current baseline
 
 The implemented research focus is hurricane structure retrieval and related evaluation. Existing package, experiments and scientific documentation are retained.
 
 ## Planned scope
 
-Observed flood extent, event-related coastal inundation and shoreline disturbance, exposed-asset screening, access and inspection priorities, and recovery evidence. None of these additions is claimed to be implemented by this scope change.
+Observed flood extent, event-related coastal inundation and shoreline disturbance, footprint exposure,
+access and inspection priorities, and recovery evidence remain planned. The point-evidence baseline
+is a limited implemented precursor, not validation of those capabilities.
 
 ## Ownership and interfaces
 

@@ -2,6 +2,10 @@
 
 Status: planned extension of Vaughan. Existing hurricane structure retrieval remains a separate research capability. Portfolio hub: [Lillie US](https://github.com/Ibekwemmanuel7/Lillie_US).
 
+The [Ian pilot specification](IAN_INSPECTION_PILOT.md) freezes the first geography, decision,
+references, timing and proposed acceptance gates. M1 implements a retrospective HWM proximity
+baseline only; the remaining packages below are not implied to be complete.
+
 ## Proposed first decision
 
 An environmental or asset-management consultant needs to decide which customer sites warrant field inspection after a flood or coastal storm. Confirm buyer access and the decision deadline before choosing a pilot geography or event.

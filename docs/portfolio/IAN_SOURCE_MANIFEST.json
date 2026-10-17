@@ -1,0 +1,16 @@
+{
+  "source": "https://services.arcgis.com/3wFbqsFPLeKqOlIK/ArcGIS/rest/services/High_Water_Marks_Ian/FeatureServer/0",
+  "query": "https://services.arcgis.com/3wFbqsFPLeKqOlIK/ArcGIS/rest/services/High_Water_Marks_Ian/FeatureServer/0/query?where=1%3D1&geometry=-82.3%2C26.4%2C-81.7%2C26.8&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&outSR=4326&f=geojson",
+  "retrieved_at": "2026-10-17T16:20:16.436277+00:00",
+  "sha256": "d285d3524102ffb81c74f01f3f629c76e889e625d46330c34b8c082067f6fe91",
+  "count": 82,
+  "bbox": [
+    -82.3,
+    26.4,
+    -81.7,
+    26.8
+  ],
+  "event_id": 325,
+  "upstream_available_at": null,
+  "use": "Retrospective evidence baseline only; hosted USGS-labelled copy, not independently audited against STN"
+}
