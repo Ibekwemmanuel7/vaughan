@@ -1,6 +1,12 @@
 # Vaughan: physics-guided score-based data assimilation for hurricane structure
 
-Vaughan is the platform and the Python package (`vaughan`, in the `vaughan/` folder of this repository). The repository itself keeps its original GitHub name, `milton_da`, so that existing links, including the dashboard address, keep working. The name is borrowed from The Displacements (Bruce Holsinger, 2022), a novel about a hurricane and the people it uproots.
+<!-- LILLIE_US_PORTFOLIO_START -->
+**Part of [Lillie US](https://github.com/Ibekwemmanuel7/Lillie_US)** · [Portfolio map](https://github.com/Ibekwemmanuel7/Lillie_US/blob/main/docs/PORTFOLIO.md) · [Scope and boundaries](docs/portfolio/SCOPE.md)
+
+**Portfolio domain:** Hurricanes, flood and coastal impacts. **Status:** Existing hurricane research code; flood and coastal-impact extensions are planned.
+<!-- LILLIE_US_PORTFOLIO_END -->
+
+Vaughan is the platform and the Python package (`vaughan`, in the `vaughan/` folder of this repository). The GitHub repository is `vaughan`; older local paths and documentation may refer to `milton_da`. The name is borrowed from The Displacements (Bruce Holsinger, 2022), a novel about a hurricane and the people it uproots.
 
 ## Hurricane Milton (Oct 2024) and Hurricane Melissa (Oct 2025)
 
@@ -188,3 +194,7 @@ and improved both temperature and precipitation RMSE relative to the U-Net proxy
   analyses or aircraft dropsonde composites and treat ERA5 as a weak prior.
 * Hydrostatic balance is applied as the static-stability consequence for T on p-levels; add
   geopotential to the state if you want balance enforced explicitly.
+
+## Flood and coastal impacts roadmap
+
+The portfolio scope now includes flood and coastal impacts as a planned extension. Existing hurricane-retrieval code does not constitute a validated flood or coastal-damage service. See [the delivery roadmap](docs/portfolio/FLOOD_COASTAL_ROADMAP.md).
