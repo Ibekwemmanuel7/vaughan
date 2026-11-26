@@ -125,7 +125,9 @@ async function main() {
   /** a minus b, same shape */
   const minus = (a, b) => { const data = new Float32Array(a.data.length); for (let k = 0; k < data.length; k++) data[k] = a.data[k] - b.data[k]; return { data, h: a.h, w: a.w }; };
   const REFNAME = () => ({ era5: tref(), unet: 'direct U-Net', phys: 'physics-only run' });
+  let lastScale = { kind: 'div', lo: '', hi: '', units: '', note: '' };
   function setScale(kind, lo, hi, units, note) {
+    lastScale = { kind, lo, hi, units, note: note ?? lastScale.note };
     $('scale_grad').style.background = gradient(kind === 'div' ? DIVERGING : kind === 'seq' ? SEQUENTIAL : GREY);
     $('scale_lo').textContent = lo; $('scale_hi').textContent = hi; $('scale_units').textContent = units;
     if (note !== undefined) $('scale_note').textContent = note;
@@ -147,6 +149,7 @@ async function main() {
       ? `At ${t} the sounder saw ${Math.round(s.mw_coverage * 100)} percent of the domain. The analysis puts the 300 hPa warm core at ${fmt(s.warm_core_K[i300], 1)} K against ${tref()}'s ${e5 == null ? 'unlabelled value' : fmt(e5, 1) + ' K'}${isNum(s.inner_core_rmse_K.analysis) ? `, with an inner-core error of ${fmt(s.inner_core_rmse_K.analysis)} K` : ''}${d == null ? '' : d < -0.02 ? `, ${fmt(-d)} K better than the direct U-Net` : d > 0.02 ? `, ${fmt(d)} K worse than the direct U-Net` : ', the same as the direct U-Net to 0.02 K'}.`
       : `At ${t} there was no ATMS overpass, so the analysis is the infrared through the learned proxy plus the prior. It puts the 300 hPa warm core at ${fmt(s.warm_core_K[i300], 1)} K against ${tref()}'s ${e5 == null ? 'unlabelled value' : fmt(e5, 1) + ' K'}${isNum(s.inner_core_rmse_K.analysis) ? `, inner-core error ${fmt(s.inner_core_rmse_K.analysis)} K` : ''}; the full system and the direct U-Net coincide here, as they must.`;
     drawProfile($('profile'), LEV, { era5: s.warm_core_era5_K, phys: storm === 'milton' ? PH[i]?.warm_core_K : null, unet: s.warm_core_unet_K, ana: s.warm_core_K });
+    writeURL();
     if (!fields) return;
     const has = k => fields.has(`s${i}.${k}`);
     const F = k => fields.get(`s${i}.${k}`);
@@ -237,9 +240,109 @@ async function main() {
   hero.slider.addEventListener('input', e => { setPlaying(false); if (storm !== 'milton') setStorm('milton'); select(+e.target.value); });
   hero.slider.max = String(S.length - 1);
 
+  // ---- shareable views: the explorer state lives in the query string (?storm=polo&t=2026-09-24T08:00&v=obs&lev=300&ref=era5&diff=1) ----
+  function viewParams() {
+    const q = new URLSearchParams();
+    q.set('storm', storm); q.set('t', S[cur].time.slice(0, 16)); q.set('v', X.v);
+    if (X.v === 'temp') { q.set('lev', String(X.level)); q.set('ref', X.ref); }
+    if (X.diff && (X.v === 'temp' || X.v === 'rain')) q.set('diff', '1');
+    if (document.body.classList.contains('present')) q.set('present', '1');
+    return q;
+  }
+  function writeURL() {
+    if (playing || !urlLive) return;
+    const url = `${location.pathname}?${viewParams()}${location.hash}`;
+    if (url !== location.pathname + location.search + location.hash) history.replaceState(null, '', url);
+  }
+  let urlLive = false;                                   // do not rewrite the address until the user has touched the explorer or arrived with a view
+  function applyURL() {
+    const q = new URLSearchParams(location.search);
+    if (![...q.keys()].length) return false;
+    setPlaying(false);
+    const v = q.get('v');
+    if (v && tabs.some(t => t.dataset.var === v)) { X.v = v; tabs.forEach(u => u.setAttribute('aria-selected', String(u.dataset.var === v))); }
+    if (q.get('lev') === '850' || q.get('lev') === '300') { X.level = +q.get('lev'); $('levelsel').value = q.get('lev'); }
+    if (['era5', 'unet', 'phys'].includes(q.get('ref'))) { X.ref = q.get('ref'); $('refsel').value = X.ref; }
+    X.diff = q.get('diff') === '1'; $('diffchk').checked = X.diff;
+    const st = q.get('storm');
+    if (st && STORMS[st] && st !== storm) setStorm(st);
+    syncControls();
+    const t = q.get('t'), k = t ? S.findIndex(s => s.time.startsWith(t)) : -1;
+    select(k >= 0 ? k : cur);
+    if (q.get('present') === '1') setPresent(true);
+    urlLive = true; writeURL();
+    return true;
+  }
+  ['stormsel', 'levelsel', 'refsel', 'diffchk', 'vartabs', 'strip', 'prevbtn', 'nextbtn'].forEach(id => $(id).addEventListener('click', () => { urlLive = true; }, true));
+  ['stormsel', 'levelsel', 'refsel'].forEach(id => $(id).addEventListener('change', () => { urlLive = true; writeURL(); }, true));
+
+  const note = msg => { $('sharenote').textContent = msg; clearTimeout(note.t); note.t = setTimeout(() => { $('sharenote').textContent = ''; }, 4000); };
+  $('copybtn').addEventListener('click', async () => {
+    urlLive = true; writeURL();
+    const url = `${location.origin}${location.pathname}?${viewParams()}#explorer`;
+    try { await navigator.clipboard.writeText(url); note('Link copied: it reopens this storm, time and view.'); }
+    catch { note(url); }
+  });
+
+  // ---- figure export: the two maps side by side with the colour bar and a caption that names everything ----
+  $('exportbtn').addEventListener('click', () => {
+    const s = S[cur], A = views.get('c_ana').canvas, Rc = views.get('c_ref').canvas;
+    const W = 1600, pad = 36, gap = 28, mw = (W - 2 * pad - gap) / 2, mh = Math.round(mw * A.height / A.width);
+    const H = pad + 64 + mh + 120 + pad;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const css = getComputedStyle(document.documentElement);
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#141a21'; g.font = '700 30px "Times New Roman", serif';
+    const varName = { temp: `Temperature anomaly, ${X.level} hPa`, rain: 'Rain rate', obs: 'ATMS channel 7, 54.4 GHz', spread: 'Ensemble spread and analysis minus U-Net, 300 hPa', xsec: 'East-west cross-section through the centre' }[X.v];
+    g.fillText(`${STORMS[storm].label.split(',')[0]} · ${fmtT(s.time)} · ${varName}`, pad, pad + 26);
+    g.font = '600 20px system-ui, Helvetica, Arial, sans-serif'; g.fillStyle = '#4d5866';
+    g.fillText($('lab_ana').textContent, pad, pad + 58); g.fillText($('lab_ref').textContent, pad + mw + gap, pad + 58);
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(A, pad, pad + 70, mw, mh); g.drawImage(Rc, pad + mw + gap, pad + 70, mw, mh);
+    // colour bar from the same stops the page uses
+    const y = pad + 70 + mh + 26, stops = lastScale.kind === 'div' ? DIVERGING : lastScale.kind === 'seq' ? SEQUENTIAL : GREY;
+    const lg = g.createLinearGradient(pad + 60, 0, pad + 420, 0);
+    stops.forEach((col, k) => lg.addColorStop(k / (stops.length - 1), `rgb(${col.join(',')})`));
+    g.fillStyle = lg; g.fillRect(pad + 60, y, 360, 16); g.strokeStyle = '#d3dae2'; g.strokeRect(pad + 60, y, 360, 16);
+    g.fillStyle = '#141a21'; g.font = '18px "IBM Plex Mono", "Courier New", monospace';
+    g.textAlign = 'right'; g.fillText(lastScale.lo, pad + 52, y + 14); g.textAlign = 'left'; g.fillText(lastScale.hi, pad + 428, y + 14);
+    g.font = '18px system-ui, Helvetica, Arial, sans-serif'; g.fillStyle = '#4d5866'; g.fillText(lastScale.units, pad + 490, y + 14);
+    g.fillText(lastScale.note || '', pad, y + 48);
+    const cov = covered(s) ? `ATMS ${Math.round(s.mw_coverage * 100)}% of domain` : 'no ATMS overpass';
+    const ic = isNum(s.inner_core_rmse_K?.analysis) ? `inner-core RMSE ${fmt(s.inner_core_rmse_K.analysis)} K vs ${tref()}` : 'no temperature label';
+    g.fillText(`Vaughan, ${STORMS[storm].run || 'milton_v3'}: 8 members x 500 steps, Milton checkpoints · ${cov} · ${ic} · ibekwemmanuel7.github.io/vaughan`, pad, y + 78);
+    c.toBlob(b => {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(b);
+      a.download = `vaughan_${storm}_${s.time.slice(0, 13).replace(/[-:]/g, '').replace('T', '_')}Z_${X.v}${X.v === 'temp' ? X.level : ''}${X.diff ? '_diff' : ''}.png`;
+      document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      note(`Saved ${a.download}`);
+    }, 'image/png');
+  });
+
+  // ---- presentation mode: the explorer alone, large type, the finding as the takeaway; P toggles, Esc leaves ----
+  function setPresent(on) {
+    document.body.classList.toggle('present', on);
+    $('presentbtn').setAttribute('aria-pressed', String(on));
+    $('presentbtn').textContent = on ? 'Leave presentation' : 'Present';
+    if (on) { setPlaying(false); $('explorer').scrollIntoView(); }
+    for (const v of views.values()) v.blit();
+    writeURL();
+  }
+  $('presentbtn').addEventListener('click', () => { urlLive = true; setPresent(!document.body.classList.contains('present')); });
+  document.addEventListener('keydown', e => {
+    if (e.target.closest('input, select, textarea')) return;
+    if (e.key === 'Escape' && document.body.classList.contains('present')) setPresent(false);
+    if ((e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey && !e.altKey) { urlLive = true; setPresent(!document.body.classList.contains('present')); }
+    if (document.body.classList.contains('present') && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.target.closest('.strip, .tabs')) {
+      select((cur + (e.key === 'ArrowRight' ? 1 : -1) + S.length) % S.length); e.preventDefault();
+    }
+  });
+
   syncControls();
   select(cur);
   setPlaying(playing);
+  applyURL();
 
   // ---- field buffer, then preload the remaining frames in the background ----
   status.hidden = false; status.textContent = 'loading fields';

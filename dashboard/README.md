@@ -49,6 +49,11 @@ screens one map is shown with an Analysis/Reference switch. The storm selector l
 runtime from the saved analyses and scene files), Melissa and Polo; each extra storm is packed into its own
 `data/fields.<storm>.<hash>.bin`, fetched the first time it is selected, so the first paint stays Milton-sized.
 The Gulf imagery loop and the enhanced core image exist for Milton only; the other storms show the band 13 field.
+The explorer state lives in the query string (`?storm=polo&t=2026-09-22T20:00&v=temp&lev=300&ref=unet&diff=1`),
+so **Copy link** reopens the same storm, time and view. **Export PNG** saves the two maps with the colour bar and a
+caption naming the storm, time, variable, reference, run and inner-core error. **Present** (or the P key; Esc
+leaves, the arrow keys step through time) shows the explorer alone in large type with the finding as the takeaway,
+and `&present=1` opens a link straight into it.
 
 
 Polo (September 2026) is a static section like Melissa's: figures from results/polo (polo_summary.png, polo_structure_2026-09-22T2000.png copied to raw/polo_structure.png) and the per-scene table generated from results/polo/polo_scores.csv. The time-continuity subsection uses results/polo/polo_persist.png (copied to raw/) and the numbers from polo_persist_compare.csv.

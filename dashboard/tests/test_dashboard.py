@@ -118,3 +118,24 @@ def test_polo_section(pw, server):
         assert ok, name
     assert page.locator('a[href="#polo"]').count() >= 1 and page.locator('nav.toc a').count() == 6
     assert errors == [], errors
+
+
+def test_shared_view_and_storm_selector(pw, server):
+    """A link with ?storm=&t=&v= reopens that view; other storms load their own field buffer when present."""
+    ctx = pw.new_context(viewport={'width': 1280, 'height': 900})
+    page = ctx.new_page(); errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    page.goto(server + 'index.html?storm=milton&t=2024-10-08T18:00&v=rain#explorer', wait_until='networkidle')
+    page.wait_for_function("document.getElementById('status').hidden === true", timeout=15000)
+    assert page.locator('#timelab').inner_text() == '08 Oct 18Z'
+    assert page.locator('#vartabs .tab[data-var=rain]').get_attribute('aria-selected') == 'true'
+    assert page.locator('#playbtn').inner_text() == 'Play'
+    storms = page.eval_on_selector_all('#stormsel option', 'o => o.map(x => x.value)')
+    if 'polo' in storms:
+        page.select_option('#stormsel', 'polo')
+        page.wait_for_function("document.getElementById('status').hidden === true", timeout=15000)
+        assert page.locator('#strip .chip').count() == 32 and page.locator('#strip .chip .dot.on').count() == 9
+        assert 'storm=polo' in page.url
+    page.keyboard.press('p'); assert page.evaluate("document.body.classList.contains('present')")
+    page.keyboard.press('Escape'); assert not page.evaluate("document.body.classList.contains('present')")
+    assert errors == [], errors

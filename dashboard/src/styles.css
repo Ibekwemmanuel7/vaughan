@@ -216,3 +216,19 @@ table.summary td:first-child{font-family:var(--serif);font-size:15px}
   .lab.dim{margin-left:0;flex-basis:100%}
 }
 [hidden]{display:none !important}
+
+/* ---- step 4: share, export, presentation mode ---- */
+.ctlgroup.share{margin-left:auto}
+.sharebtns{display:flex;gap:6px;flex-wrap:wrap}
+.sharenote{min-height:1.2em;margin:4px 0 0;overflow-wrap:anywhere}
+body.present .mast,body.present nav.toc,body.present main>section:not(#explorer),body.present footer,body.present #explorer>p:not(.finding):not(.status):not(.sharenote),body.present #explorer .viewhead .eyebrow,body.present #explorer details.more,body.present #explorer .chart{display:none}
+body.present .wrap{max-width:1500px}
+body.present #explorer{padding-top:16px;border-top:0}
+body.present #explorer .viewhead h2{font-size:clamp(26px,3vw,36px)}
+body.present .map figcaption.t{font-size:18px}
+body.present .scalebar{font-size:17px}
+body.present #explorer .stat .n{font-size:28px}
+body.present #explorer .stat .l{font-size:17px}
+body.present .finding{font-size:24px;line-height:1.4;max-width:none;border-left-width:5px;padding:12px 20px}
+body.present .strip .chip{font-size:15px}
+@media print{.sharebtns,.sharenote{display:none}}

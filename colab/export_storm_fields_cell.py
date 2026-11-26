@@ -9,16 +9,18 @@ import numpy as np, xarray as xr
 from google.colab import drive
 drive.mount('/content/drive')
 A = '/content/drive/MyDrive/milton_artifacts'; UP = '/content/drive/MyDrive/milton_da_upload'
-for zname, sdir, pat in (('melissa_scenes.zip', '/content/data/melissa/scenes', 'MELISSA_*.nc'), ('polo_scenes_era5.zip', '/content/data/polo/scenes_era5', 'POLO_*.nc')):
+for zname, sdir, pat in (('melissa_scenes.zip', '/content/data/melissa/scenes', 'MELISSA_*.nc'), ('polo_scenes_era5.zip', '/content/data/polo/scenes_era5', 'POLO_*.nc'), ('isaias_scenes.zip', '/content/data/isaias/scenes', 'ISAIAS_*.nc')):
     if glob.glob(f'{sdir}/{pat}'): continue
     if not os.path.exists(f'{UP}/{zname}'): print('no', zname, 'in', UP); continue
     os.makedirs(sdir, exist_ok=True); subprocess.run(['unzip', '-o', '-q', f'{UP}/{zname}', '-d', sdir], check=True)
     for f in glob.glob(f'{sdir}/**/{pat}', recursive=True):
         if os.path.dirname(f) != sdir: shutil.move(f, f'{sdir}/' + os.path.basename(f))
     print(zname, '->', len(glob.glob(f'{sdir}/{pat}')), 'scenes')
+ONLY = None   # e.g. ['isaias'] to export one storm
 JOBS = {   # storm: (analysis folder, scene folder, pattern, rain reference label)
     'melissa': (f'{A}/melissa_analysis', '/content/data/melissa/scenes', 'MELISSA_*', 'IMERG Late Run'),
     'polo': (f'{A}/polo_analysis_plain_era5', '/content/data/polo/scenes_era5', 'POLO_*', 'IMERG Late Run'),
+    'isaias': (f'{A}/isaias_analysis', '/content/data/isaias/scenes', 'ISAIAS_*', 'IMERG Late Run'),
 }
 CORE_HALF = 8
 def coarsen(a, n=64):
@@ -38,6 +40,7 @@ def rm(a, b, sl=None):
     ok = np.isfinite(aa) & np.isfinite(bb)
     return float(np.sqrt(np.mean((aa[ok] - bb[ok]) ** 2))) if ok.mean() > 0.5 else None
 for storm, (RUN, SC, pat, rain_ref) in JOBS.items():
+    if ONLY and storm not in ONLY: continue
     files = sorted(glob.glob(f'{RUN}/{pat}_analysis.nc'))
     if not files: print(storm, ': no analyses in', RUN); continue
     scenes = []

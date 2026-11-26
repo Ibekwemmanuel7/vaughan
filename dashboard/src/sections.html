@@ -46,6 +46,7 @@
     <label class="ctlgroup" id="levelgroup"><span class="lab">Level</span><select id="levelsel" class="sel"><option value="300">300 hPa</option><option value="850">850 hPa</option></select></label>
     <label class="ctlgroup" id="refgroup"><span class="lab">Reference</span><select id="refsel" class="sel"><option value="era5">ERA5</option><option value="unet">direct U-Net</option><option value="phys">physics-only</option></select></label>
     <label class="ctlgroup check"><input type="checkbox" id="diffchk"> <span class="lab">Difference</span></label>
+    <div class="ctlgroup share"><div class="sharebtns"><button type="button" class="btn" id="copybtn">Copy link</button><button type="button" class="btn" id="exportbtn">Export PNG</button><button type="button" class="btn" id="presentbtn" aria-pressed="false">Present</button></div></div>
   </div>
   <div class="strip" id="strip" role="group" aria-label="analysis time; use the arrow keys to move between times"></div>
   <div class="phoneswitch" role="group" aria-label="which map to show on narrow screens"><button type="button" class="chip" data-show="ana" aria-pressed="true">Analysis</button><button type="button" class="chip" data-show="ref" aria-pressed="false">Reference</button></div>
@@ -56,6 +57,7 @@
   </div>
   <div class="scalebar"><span id="scale_lo" class="mono"></span><i id="scale_grad"></i><span id="scale_hi" class="mono"></span><span id="scale_units" class="lab"></span><span class="lab dim" id="scale_note">storm-centred box, about 560 km across; north up</span></div>
   <div class="scenestats" id="scenestats" aria-live="polite"></div>
+  <p class="sharenote fine" id="sharenote" role="status" aria-live="polite"></p>
   <p class="finding" id="finding"></p>
   <details class="more"><summary>Definitions and limitations for these panels</summary>
     <p class="note">Temperature maps are anomalies from the domain mean at the chosen level, on a fixed scale of minus 4 to plus 4 K so that times can be compared; ERA5 is the 0.25 degree reanalysis regridded to the 4.4 km analysis grid, which smooths the eye. Rain is the ensemble-mean rate against IMERG Final Run, 0 to 30 mm per hour. Observations show ATMS channel 7 (54.4 GHz) as observed and as simulated from the analysis by the calibrated operator after the archive bias of 18.3 K is removed; grey means no overpass in the 90 minute window. Spread is the standard deviation across the 8 members at 300 hPa, 0 to 0.3 K (it is about 0.1 K almost everywhere, the underdispersion stated under Limitations); the companion map is the analysis minus the direct U-Net at 300 hPa, which is what the prior and the physics term changed. The cross-section runs east to west through the best-track centre, 200 to 1000 hPa, anomaly from each level's mean. Differences are analysis minus reference on their own scale. Inner-core RMSE: central 16 x 16 pixels (about 70 km) at 300 hPa. Fields are stored at 64 x 64 (8.8 km) for the page; the analyses themselves are 128 x 128.</p>

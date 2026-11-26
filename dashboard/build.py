@@ -93,7 +93,7 @@ def main():
     # other storms, exported by colab/export_storm_fields_cell.py into raw/dash_<storm>.json (optional): each gets its own
     # field buffer, fetched only when the explorer's storm selector asks for it, so the first paint stays Milton-sized
     STORMS = {'milton': {'label': 'Milton, October 2024', 'temperature_reference': 'ERA5', 'rain_reference': 'IMERG Final Run', 'scenes': None}}
-    for storm in ('melissa', 'polo'):
+    for storm in ('melissa', 'polo', 'isaias'):
         path = os.path.join(RAW, f'dash_{storm}.json')
         if not os.path.exists(path):
             continue
@@ -108,7 +108,7 @@ def main():
                     pk2.add(f's{i}.truth.{k}', s['truth'][k])
         fb2 = pk2.bytes(); name2 = f'fields.{storm}.{h8(fb2)}.bin'
         open(os.path.join(OUT, 'data', name2), 'wb').write(fb2)
-        STORMS[storm] = {'label': {'melissa': 'Melissa, October 2025', 'polo': 'Polo, September 2026'}[storm],
+        STORMS[storm] = {'label': {'melissa': 'Melissa, October 2025', 'polo': 'Polo, September 2026', 'isaias': 'Isaias, October 2026'}[storm],
                          'temperature_reference': E.get('temperature_reference', 'ERA5'), 'rain_reference': E.get('rain_reference', 'IMERG'),
                          'run': E.get('run', ''), 'scenes': [{k: v for k, v in s.items() if k not in ('fields', 'truth')} for s in E['scenes']],
                          'fields': {'file': f'data/{name2}', 'bytes': len(fb2), 'dtype': 'uint16-le', 'index': pk2.index}}
